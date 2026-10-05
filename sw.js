@@ -1,5 +1,5 @@
 /* Service worker: aplikacja działa offline po pierwszym uruchomieniu. */
-const CACHE = 'alvatour-v2.2.0';
+const CACHE = 'alvatour-v2.2.1';
 const SHELL = [
   './', 'index.html', 'app.css', 'core.js', 'globe.js', 'panel.js', 'views.js', 'fun.js', 'places.js', 'main.js',
   'countries.json', 'meta.json',

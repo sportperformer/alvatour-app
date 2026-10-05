@@ -2,11 +2,10 @@
   "name": "AlvaTour",
   "short_name": "AlvaTour",
   "description": "AlvaTour: Twoja osobista mapa podróży",
-  "lang": "pl",
-  "start_url": "./index.html",
+  "start_url": "./index.html?v=3",
   "scope": "./",
   "display": "standalone",
-  "orientation": "any",
+  "orientation": "portrait-primary",
   "background_color": "#eef2f5",
   "theme_color": "#1f3a5f",
   "icons": [
@@ -28,14 +27,5 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ],
-  "share_target": {
-    "action": "./index.html",
-    "method": "GET",
-    "params": {
-      "title": "title",
-      "text": "text",
-      "url": "url"
-    }
-  }
+  ]
 }
