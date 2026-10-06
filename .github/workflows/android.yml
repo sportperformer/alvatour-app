@@ -4,7 +4,7 @@
 # - push do main:        testy + podpisane APK + WERSJA TESTOWA w GitHub Releases (pre-release, tag v<wersja>-test.<nr>)
 # - ręcznie z "produkcja": testy + podpisane APK + WERSJA PRODUKCYJNA (tag v<wersja>)
 #
-# Jeśli testy nie przejdą, nie ma buildu ani wydania.
+# Jeśli testy (także test na emulatorze Androida 14) nie przejdą, nie ma wydania.
 name: Android
 
 on:
@@ -146,9 +146,51 @@ jobs:
           path: dist/*.apk
           retention-days: 30
 
+  emulator:
+    name: Emulator Android 14
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Android SDK (preinstalowane na runnerze, dokładamy platformę 36)
+        run: |
+          sdkmanager=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" "platforms;android-36" "platform-tools" > /dev/null
+      - name: KVM dla emulatora
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - run: npm ci
+      - name: APK DEV (debug) do testu
+        run: |
+          npm run build
+          npx cap sync android
+          cd android && ./gradlew --no-daemon assembleDevDebug
+      - name: Test na emulatorze (Android 14)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: node scripts/emulator-smoke.mjs android/app/build/outputs/apk/dev/debug/app-dev-debug.apk
+
   release:
     name: Wydanie w GitHub Releases
-    needs: build
+    needs: [build, emulator]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
