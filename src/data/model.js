@@ -26,6 +26,8 @@ export function validYear(y) {
   return Number.isInteger(n) && n >= MIN_YEAR && n <= thisYear();
 }
 
+import { isValidPartial, yearOf } from './dates.js';
+
 // Pola zaczynające się od "_" są tymczasowe (np. _s: pozycja pinezki na ekranie, liczona przy rysowaniu globu).
 // Nigdy nie trafiają do bazy, kopii ani eksportu.
 export const isTransientKey = (k) => typeof k === 'string' && k.startsWith('_');
@@ -34,18 +36,32 @@ const persistent = (o) => Object.fromEntries(Object.entries(o || {}).filter(([k]
 let uidCounter = 0;
 const newPlaceId = () => 'p' + Date.now().toString(36) + (uidCounter++).toString(36) + Math.random().toString(36).slice(2, 6);
 
+/**
+ * Dokładniejsza data obok roku (od 1.1.0): firstDate kraju i date wizyty, np. "2024", "2024-04", "2024-04-15".
+ * Rok (firstYear / year) zostaje głównym polem (statystyki, odznaki); brak roku uzupełniamy z daty.
+ * Niepoprawny tekst daty jest pomijany, rok nigdy nie jest kasowany.
+ */
+function withDate(out, src, yearKey, dateKey) {
+  const v = src ? src[dateKey] : undefined;
+  if (v !== undefined && v !== null && v !== '' && isValidPartial(v)) {
+    out[dateKey] = String(v);
+    if (out[yearKey] == null) out[yearKey] = yearOf(v);
+  } else delete out[dateKey];
+  return out;
+}
+
 export function normalizeCountry(c, now) {
-  return {
+  return withDate({
     ...persistent(c),
     visited: !!c.visited,
     wish: !c.visited && !!c.wish,
     firstYear: validYear(c.firstYear) ? Number(c.firstYear) : null,
-    visits: Array.isArray(c.visits) ? c.visits.map((v) => ({ ...(isObj(v) ? persistent(v) : {}), year: validYear(v && v.year) ? Number(v.year) : null, note: String((v && v.note) || '') })) : [],
+    visits: Array.isArray(c.visits) ? c.visits.map((v) => withDate({ ...(isObj(v) ? persistent(v) : {}), year: validYear(v && v.year) ? Number(v.year) : null, note: String((v && v.note) || '') }, v, 'year', 'date')) : [],
     notes: String(c.notes || ''),
     rating: clamp(Number(c.rating) || 0, 0, 5),
     plannedDate: typeof c.plannedDate === 'string' ? c.plannedDate : '',
     addedAt: c.addedAt || now,
-  };
+  }, c, 'firstYear', 'firstDate');
 }
 
 export function normalizePlace(p, now) {

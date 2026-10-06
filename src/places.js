@@ -101,6 +101,7 @@ function savePlace(p, opts = {}) {
     if (p.status === 'visited' && !isVisited(cc)) {
       const y = placeYear(p);
       state.countries[cc] = { visited: true, wish: false, firstYear: validYear(y) ? y : null, visits: [], notes: (c && c.notes) || '', rating: 0, plannedDate: (c && c.plannedDate) || '', addedAt: new Date().toISOString() };
+      if (validYear(y) && D.isValidPartial(p.date)) state.countries[cc].firstDate = p.date; // data miejsca = pierwsza wizyta w kraju
       if (!opts.silent) setTimeout(() => stampPop(cc), 350);
     } else if (p.status === 'planned' && !c) {
       state.countries[cc] = { visited: false, wish: true, firstYear: null, visits: [], notes: '', rating: 0, plannedDate: '', addedAt: new Date().toISOString() };
@@ -189,11 +190,10 @@ function renderPlaceSheet() {
       <button type="button" data-st="visited" role="radio" aria-checked="${p.status === 'visited'}">${svgIcon('stamp', 16)} Byłem tu</button>
       <button type="button" data-st="planned" role="radio" aria-checked="${p.status === 'planned'}">${svgIcon('plane', 16)} Chcę odwiedzić</button>
     </div>
-    <div class="two-col">
-      <div class="field"><label for="plDate">${p.status === 'visited' ? 'Kiedy' : 'Planowany termin'}</label><input id="plDate" type="date" value="${esc(p.date)}"></div>
-      <div class="field" ${p.status === 'visited' ? '' : 'hidden'}><span class="field-label">Ocena</span>
-        <div class="hearts" id="plHearts">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-r="${n}" aria-label="${n} na 5" class="${p.rating >= n ? 'on' : ''}">${ICON_HEART}</button>`).join('')}</div></div>
-    </div>
+    <div class="field"><span class="field-label">${p.status === 'visited' ? 'Kiedy' : 'Planowany termin'} <span class="muted small">(dzień i miesiąc opcjonalnie)</span></span>
+      <div id="plDate">${datePickerHTML(D.parsePartial(p.date) ? p.date : '', { future: p.status !== 'visited', label: p.status === 'visited' ? 'Kiedy' : 'Planowany termin' })}</div></div>
+    <div class="field" ${p.status === 'visited' ? '' : 'hidden'}><span class="field-label">Ocena</span>
+      <div class="hearts" id="plHearts">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-r="${n}" aria-label="${n} na 5" class="${p.rating >= n ? 'on' : ''}">${ICON_HEART}</button>`).join('')}</div></div>
     <div class="field"><span class="field-label">Kategoria</span>${catChips(p.cat, 'plcat')}</div>
     <div class="field"><label for="plNote">Notatka</label><textarea id="plNote" rows="3" placeholder="Co zamówić, z kim byłeś, na co uważać">${esc(p.note)}</textarea></div>
     ${p.addr ? `<p class="muted small">${esc(p.addr)}${p.approx ? ' (lokalizacja przybliżona)' : ''}</p>` : (p.approx ? '<p class="muted small">Lokalizacja przybliżona do kraju.</p>' : '')}
@@ -208,7 +208,7 @@ function renderPlaceSheet() {
     p.status = b.dataset.st;
     savePlace(p); sfx.pop(); renderPlaceSheet();
   });
-  $('plDate').addEventListener('change', (e) => { p.date = e.target.value; savePlace(p); });
+  bindDatePicker($('plDate').querySelector('.dpick'), (v) => { p.date = v; savePlace(p); });
   $('plHearts').addEventListener('click', (e) => {
     const b = e.target.closest('[data-r]'); if (!b) return;
     const r = Number(b.dataset.r); p.rating = p.rating === r ? 0 : r;
@@ -331,26 +331,31 @@ function showManualForm(parsed) {
 }
 function showPlaceForm(d) {
   const f = $('plForm');
-  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   f.hidden = false;
   f.innerHTML = `
     <div class="field"><label for="plName">Nazwa</label><input id="plName" type="text" value="${esc(d.name)}"></div>
     ${d.approx ? `<div class="field"><label for="plCC">Kraj (lokalizacja przybliżona)</label><select id="plCC"></select><input id="plCity" type="text" placeholder="Miasto (opcjonalnie)" value="${esc(d.city)}"></div>` : ''}
     <div class="field"><span class="field-label">Kategoria</span>${catChips(d.cat, 'newcat')}</div>
     <div class="seg seg-wide" id="plNewSt" role="radiogroup"><button type="button" data-st="visited" role="radio" aria-checked="true">${svgIcon('stamp', 16)} Byłem tu</button><button type="button" data-st="planned" role="radio" aria-checked="false">${svgIcon('plane', 16)} Chcę odwiedzić</button></div>
-    <div class="two-col"><div class="field"><label for="plNewDate">Kiedy</label><input id="plNewDate" type="date" value="${today}"></div>
-      <div class="field"><span class="field-label">Ocena</span><div class="hearts" id="plNewHearts">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-r="${n}" aria-label="${n} na 5">${ICON_HEART}</button>`).join('')}</div></div></div>
+    <div class="field"><span class="field-label"><span id="plNewDateLabel">Kiedy</span> <span class="muted small">(dzień i miesiąc opcjonalnie)</span></span>
+      <div id="plNewDate">${datePickerHTML(today, { future: true, label: 'Kiedy' })}</div></div>
+    <div class="field"><span class="field-label">Ocena</span><div class="hearts" id="plNewHearts">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-r="${n}" aria-label="${n} na 5">${ICON_HEART}</button>`).join('')}</div></div>
     <div class="field"><label for="plNewNote">Notatka</label><textarea id="plNewNote" rows="2" placeholder="Co zamówić, z kim, wrażenia"></textarea></div>
     <button type="button" class="btn btn-big" id="plSave">Zapisz miejsce</button>`;
   if (d.approx) { fillHomeSelect($('plCC'), d.cc); $('plCC').options[0].textContent = '(wybierz kraj)'; }
-  let cat = d.cat || 'other', st = 'visited', rating = 0;
+  let cat = d.cat || 'other', st = 'visited', rating = 0, date = today;
+  const datePick = $('plNewDate').querySelector('.dpick');
+  bindDatePicker(datePick, (v) => { date = v; });
   f.querySelector('[data-chips="newcat"]').addEventListener('click', (e) => { const b = e.target.closest('[data-cat]'); if (!b) return; cat = b.dataset.cat; f.querySelectorAll('[data-chips="newcat"] .cat-chip').forEach((x) => x.classList.toggle('on', x === b)); });
   $('plNewSt').addEventListener('click', (e) => {
     const b = e.target.closest('[data-st]'); if (!b) return; st = b.dataset.st;
     $('plNewSt').querySelectorAll('[data-st]').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
     $('plNewHearts').closest('.field').hidden = st !== 'visited';
-    $('plNewDate').value = st === 'visited' ? today : '';
-    f.querySelector('label[for="plNewDate"]').textContent = st === 'visited' ? 'Kiedy' : 'Planowany termin (opcjonalnie)';
+    date = st === 'visited' ? today : '';
+    setDatePicker(datePick, date);
+    $('plNewDateLabel').textContent = st === 'visited' ? 'Kiedy' : 'Planowany termin (opcjonalnie)';
   });
   $('plNewHearts').addEventListener('click', (e) => { const b = e.target.closest('[data-r]'); if (!b) return; const r = Number(b.dataset.r); rating = rating === r ? 0 : r; $('plNewHearts').querySelectorAll('[data-r]').forEach((x) => x.classList.toggle('on', rating >= Number(x.dataset.r))); });
   $('plSave').addEventListener('click', () => {
@@ -364,7 +369,7 @@ function showPlaceForm(d) {
       const jitter = () => (Math.random() - 0.5) * 0.6;
       lat = fc[1] + jitter(); lng = fc[0] + jitter();
     }
-    const p = { id: uid(), name, addr: d.addr, city, cc, lat, lng, approx: !!d.approx, cat, status: st, date: $('plNewDate').value, rating: st === 'visited' ? rating : 0, note: $('plNewNote').value.trim(), url: d.url, src: d.url ? 'gmaps' : 'search', addedAt: new Date().toISOString() };
+    const p = { id: uid(), name, addr: d.addr, city, cc, lat, lng, approx: !!d.approx, cat, status: st, date, rating: st === 'visited' ? rating : 0, note: $('plNewNote').value.trim(), url: d.url, src: d.url ? 'gmaps' : 'search', addedAt: new Date().toISOString() };
     savePlace(p);
     closeModal(); sfx.stamp(); buzz(25);
     toast(`${catIcon(p.cat, 18)} Zapisano: <b>${esc(p.name)}</b>`);

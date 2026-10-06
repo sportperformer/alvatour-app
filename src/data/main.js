@@ -11,6 +11,7 @@ import { createNativeDb } from './native-db.js';
 import { emptyState, normalizeState, describeCounts, countsOf } from './model.js';
 import { buildBackup, serializeBackup, parseBackup } from './format.js';
 import { backupName, stamp, KINDS } from './backups.js';
+import * as dates from './dates.js';
 
 const isNative = Capacitor.isNativePlatform();
 
@@ -69,6 +70,7 @@ const AlvaData = {
   describeCounts,
   countsOf,
   KINDS,
+  dates,
   folderLabel: 'Documents/AlvaTour/kopie',
   isDev: false,
 

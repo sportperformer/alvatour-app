@@ -97,7 +97,10 @@ function renderList() {
     const ya = entry(a).firstYear, yb = entry(b).firstYear;
     if (ya == null && yb == null) return byName(a, b);
     if (ya == null) return 1; if (yb == null) return -1;
-    return (sort === 'asc' ? ya - yb : yb - ya) || byName(a, b);
+    // w obrębie roku: od najdawniejszej daty (dzień/miesiąc, jeśli wpisane)
+    const ka = firstVisitKey(a), kb = firstVisitKey(b);
+    const byDate = ka < kb ? -1 : ka > kb ? 1 : 0;
+    return (sort === 'asc' ? byDate : -byDate) || byName(a, b);
   });
   const years = ids.map((id) => entry(id).firstYear).filter((y) => y != null);
   const { states, other } = counts();
@@ -123,11 +126,13 @@ function renderList() {
       }
     }
     const others = c.visits.map((v) => v.year).filter((y) => y != null).sort((a, b) => a - b);
-    const meta1 = c.notes.trim() ? c.notes.trim().split('\n')[0] : (c.visits.find((v) => v.note.trim()) || {}).note || (sort === 'az' || sort === 'fav' ? (c.firstYear ? `Pierwszy raz w ${c.firstYear}` : 'Bez roku') : '');
+    const meta1 = c.notes.trim() ? c.notes.trim().split('\n')[0] : (c.visits.find((v) => v.note.trim()) || {}).note || (sort === 'az' || sort === 'fav' ? (c.firstYear ? `Pierwszy raz: ${visitDateText(c.firstYear, c.firstDate)}` : 'Bez roku') : '');
     const chips = (sort === 'az' || sort === 'fav') && c.firstYear ? [c.firstYear, ...others] : others;
+    const exact = c.firstDate && c.firstDate.length > 4 && D.yearOf(c.firstDate) === c.firstYear ? D.formatPartial(c.firstDate) : '';
+    const meta = sort === 'az' || sort === 'fav' ? meta1 : [exact, meta1].filter(Boolean).join(' · ');
     html += `<li><button type="button" class="entry" data-id="${esc(id)}" style="--stamp:${inkOfId(id)}">
       <span class="bar"></span>${flagHTML(id, 'eflag')}
-      <span class="ename">${esc(countryName(id))}${id === homeId() ? ' <span class="home-tag">dom</span>' : ''}${meta1 ? `<span class="emeta">${esc(meta1)}</span>` : ''}</span>
+      <span class="ename">${esc(countryName(id))}${id === homeId() ? ' <span class="home-tag">dom</span>' : ''}${meta ? `<span class="emeta">${esc(meta)}</span>` : ''}</span>
       <span class="eyears">${c.rating && sort !== 'fav' ? `<span class="chip chip-heart">♥ ${c.rating}</span>` : ''}${chips.map((y) => `<span class="chip">${y}</span>`).join('')}</span>
     </button></li>`;
   }
@@ -174,9 +179,10 @@ $('listTabs').addEventListener('click', (e) => { const b = e.target.closest('[da
 /* ================= Paszport ================= */
 function renderPassport() {
   const ids = visitedIds().filter((id) => byId.has(id));
+  // od najdawniejszego: rok, w roku data (dzień/miesiąc, jeśli wpisane), potem nazwa
   ids.sort((a, b) => {
-    const ya = entry(a).firstYear ?? 9999, yb = entry(b).firstYear ?? 9999;
-    return ya - yb || collator.compare(countryName(a), countryName(b));
+    const ka = firstVisitKey(a), kb = firstVisitKey(b);
+    return (ka < kb ? -1 : ka > kb ? 1 : 0) || collator.compare(countryName(a), countryName(b));
   });
   const n = stateCount();
   const r = rankFor(n);
