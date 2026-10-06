@@ -35,7 +35,8 @@ export function pickUpdate(releases, { current, dev }) {
     const want = dev ? /^AlvaTour-DEV-.*\.apk$/ : /^AlvaTour-(?!DEV-).*\.apk$/;
     const asset = (r.assets || []).find((a) => want.test(a.name));
     if (!asset) continue;
-    best = { version: v, url: asset.browser_download_url, page: r.html_url, notes: r.body || '', prerelease: !!r.prerelease };
+    const sha256 = typeof asset.digest === 'string' && asset.digest.startsWith('sha256:') ? asset.digest.slice(7) : '';
+    best = { version: v, url: asset.browser_download_url, size: asset.size || 0, sha256, name: asset.name, page: r.html_url, notes: r.body || '', prerelease: !!r.prerelease };
   }
   return best;
 }

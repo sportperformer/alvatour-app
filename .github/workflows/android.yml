@@ -176,6 +176,9 @@ jobs:
           mkdir -p prev
           url=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=20" --jq '[.[] | select(.draft | not) | .assets[] | select(.name | test("^AlvaTour-DEV-.*\\.apk$")) | select(.name != "AlvaTour-DEV-'"$VERSION"'.apk") | .browser_download_url] | first // empty')
           if [ -n "$url" ]; then curl -sSfL "$url" -o prev/prev-dev.apk && echo "Poprzednia: $url"; else echo "Brak poprzedniej wersji"; fi
+          prod=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=20" --jq '[.[] | select(.draft | not) | .assets[] | select(.name | test("^AlvaTour-[0-9].*\\.apk$")) | .browser_download_url] | first // empty')
+          echo "PREV_DEV_URL=$url" >> "$GITHUB_ENV"
+          echo "PREV_PROD_URL=$prod" >> "$GITHUB_ENV"
           ls -la dist prev
       - name: Test na emulatorze (Android 14)
         uses: reactivecircus/android-emulator-runner@v2

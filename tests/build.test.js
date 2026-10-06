@@ -107,6 +107,14 @@ describe('Android: udostępnianie do aplikacji i API telefonu', () => {
     expect(m).toMatch(/android:launchMode="singleTask"/);
     expect(read('android/app/src/main/java/pl/sportperformer/alvatour/MainActivity.java')).toMatch(/registerPlugin\(ShareTargetPlugin\.class\)/);
   });
+  it('aktualizacja w aplikacji: uprawnienie, wtyczka i kontrola podpisu przed instalacją', () => {
+    expect(read('android/app/src/main/AndroidManifest.xml')).toMatch(/android\.permission\.REQUEST_INSTALL_PACKAGES/);
+    expect(read('android/app/src/main/java/pl/sportperformer/alvatour/MainActivity.java')).toMatch(/registerPlugin\(AppUpdaterPlugin\.class\)/);
+    const u = read('android/app/src/main/java/pl/sportperformer/alvatour/AppUpdaterPlugin.java');
+    expect(u).toMatch(/podpisana innym kluczem/);
+    expect(u).toMatch(/To inna aplikacja/);
+    expect(u).toMatch(/startsWith\("https:\/\/github\.com\/"\)/);
+  });
   it('kod aplikacji nie używa API przeglądarki, które w WebView nie działają', () => {
     for (const f of ['core.js', 'globe.js', 'panel.js', 'views.js', 'fun.js', 'places.js', 'main.js']) {
       const t = read('src/' + f);

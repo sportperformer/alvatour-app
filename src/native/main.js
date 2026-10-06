@@ -14,6 +14,7 @@ import { pickUpdate, compareVersions } from './version.js';
 
 const isNative = Capacitor.isNativePlatform();
 const ShareTarget = registerPlugin('ShareTarget');
+const AppUpdater = registerPlugin('AppUpdater');
 const REPO = 'sportperformer/alvatour-app';
 let appVersion = '0.0.0';
 let isDev = false;
@@ -119,6 +120,19 @@ const AlvaNative = {
     return { current: appVersion, update: pickUpdate(list, { current: appVersion, dev: isDev }) };
   },
   compareVersions,
+
+  /**
+   * Pobiera aktualizację wewnątrz aplikacji (bez Chrome), sprawdza ją i otwiera systemowe "Aktualizuj".
+   * onProgress(pobrane, razem). Zwraca { needsPermission } albo { started }.
+   */
+  async downloadUpdate(update, onProgress = () => {}) {
+    if (!isNative) { window.open(update.url, '_blank', 'noopener'); return { started: true }; }
+    const h = await AppUpdater.addListener('progress', (e) => onProgress(e.downloaded, e.total));
+    try {
+      return await AppUpdater.download({ url: update.url, size: update.size || -1, sha256: update.sha256 || '' });
+    } finally { h.remove(); }
+  },
+  installUpdate: () => (isNative ? AppUpdater.install() : Promise.resolve({ started: true })),
 
   /**
    * Udostępnianie DO AlvaTour (Google Maps, Claude, Gemini: Udostępnij -> AlvaTour).
