@@ -26,16 +26,21 @@ export function validYear(y) {
   return Number.isInteger(n) && n >= MIN_YEAR && n <= thisYear();
 }
 
+// Pola zaczynające się od "_" są tymczasowe (np. _s: pozycja pinezki na ekranie, liczona przy rysowaniu globu).
+// Nigdy nie trafiają do bazy, kopii ani eksportu.
+export const isTransientKey = (k) => typeof k === 'string' && k.startsWith('_');
+const persistent = (o) => Object.fromEntries(Object.entries(o || {}).filter(([k]) => !isTransientKey(k)));
+
 let uidCounter = 0;
 const newPlaceId = () => 'p' + Date.now().toString(36) + (uidCounter++).toString(36) + Math.random().toString(36).slice(2, 6);
 
 export function normalizeCountry(c, now) {
   return {
-    ...c,
+    ...persistent(c),
     visited: !!c.visited,
     wish: !c.visited && !!c.wish,
     firstYear: validYear(c.firstYear) ? Number(c.firstYear) : null,
-    visits: Array.isArray(c.visits) ? c.visits.map((v) => ({ ...(isObj(v) ? v : {}), year: validYear(v && v.year) ? Number(v.year) : null, note: String((v && v.note) || '') })) : [],
+    visits: Array.isArray(c.visits) ? c.visits.map((v) => ({ ...(isObj(v) ? persistent(v) : {}), year: validYear(v && v.year) ? Number(v.year) : null, note: String((v && v.note) || '') })) : [],
     notes: String(c.notes || ''),
     rating: clamp(Number(c.rating) || 0, 0, 5),
     plannedDate: typeof c.plannedDate === 'string' ? c.plannedDate : '',
@@ -45,7 +50,7 @@ export function normalizeCountry(c, now) {
 
 export function normalizePlace(p, now) {
   return {
-    ...p,
+    ...persistent(p),
     id: String(p.id || newPlaceId()),
     name: String(p.name), addr: String(p.addr || ''), city: String(p.city || ''), cc: String(p.cc || ''),
     lat: Number(p.lat), lng: Number(p.lng), approx: !!p.approx, cat: String(p.cat || 'other'),
@@ -60,7 +65,7 @@ export function normalizeState(s) {
   if (!isObj(s)) return out;
   const now = new Date().toISOString();
   for (const [k, v] of Object.entries(s)) {
-    if (!(k in out) && !ENVELOPE_KEYS.has(k)) out[k] = v;
+    if (!(k in out) && !ENVELOPE_KEYS.has(k) && !isTransientKey(k)) out[k] = v;
   }
   if (isObj(s.settings)) Object.assign(out.settings, s.settings);
   if (isObj(s.badges)) Object.assign(out.badges, s.badges);

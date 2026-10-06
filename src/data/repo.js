@@ -28,7 +28,7 @@ export class MigrationError extends Error {
 function extraOf(obj, known) {
   const rest = {};
   let any = false;
-  for (const [k, v] of Object.entries(obj || {})) if (!known.has(k) && v !== undefined) { rest[k] = v; any = true; }
+  for (const [k, v] of Object.entries(obj || {})) if (!known.has(k) && v !== undefined && !k.startsWith('_')) { rest[k] = v; any = true; }
   return any ? JSON.stringify(rest) : null;
 }
 function parseExtra(s) {

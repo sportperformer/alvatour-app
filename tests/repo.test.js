@@ -36,6 +36,16 @@ describe('zapis i odczyt z SQLite', () => {
     expect(back.places[0].lat).toBe(0.1 + 0.2);
     expect(back.journal).toBe('nowa sekcja');
   });
+  it('tymczasowa pozycja pinezki (_s) nie powoduje zapisów ani nie trafia do bazy', async () => {
+    const { db, repo } = await fresh();
+    const s = sampleState();
+    await repo.persist(s);
+    s.places[0]._s = [1, 2];
+    expect((await repo.persist(s)).changed).toBe(0);
+    s.places[0]._s = [3, 4]; // obrót globu
+    expect((await repo.persist(s)).changed).toBe(0);
+    expect((await db.all("SELECT extra FROM places WHERE id = 'p1'"))[0].extra).toBe(null);
+  });
   it('zapisuje tylko zmiany', async () => {
     const { repo } = await fresh();
     const s = sampleState();

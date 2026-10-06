@@ -28,7 +28,8 @@ function diffPaths(a, b, path = '', out = []) {
   if (out.length > 20) return out;
   const isObj = (x) => x && typeof x === 'object';
   if (isObj(a) && isObj(b)) {
-    for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) diffPaths(a[k], b[k], path ? `${path}.${k}` : k, out);
+    // pola "_..." są tymczasowe (np. pozycja pinezki na ekranie) i nie są danymi użytkownika
+    for (const k of new Set([...Object.keys(a), ...Object.keys(b)].filter((x) => !x.startsWith('_')))) diffPaths(a[k], b[k], path ? `${path}.${k}` : k, out);
   } else if (JSON.stringify(a) !== JSON.stringify(b)) {
     out.push(`${path}: ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
   }
@@ -45,7 +46,7 @@ device.setDefaultTimeout(90000);
 
 async function pageForCurrentProcess(tries = 60) {
   for (let i = 0; i < tries; i++) {
-    const pid = sh(`pidof ${PKG}`).split(/\s+/)[0];
+    const pid = sh(`pidof ${PKG} || true`).split(/\s+/)[0]; // pidof kończy się błędem, gdy proces jeszcze nie działa
     if (pid) {
       try {
         const wv = await device.webView({ socketName: `webview_devtools_remote_${pid}` }, { timeout: 5000 });
