@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>AlvaTour</title>
+<meta name="description" content="AlvaTour: Twoja osobista mapa podróży">
+<meta name="theme-color" content="#1f3a5f">
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<!--APP-START-->
+<div class="app" id="app">
+  <header class="topbar">
+    <button class="brand" id="brandBtn" type="button" aria-label="Statystyki i ranga">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="15" cy="17" r="12" fill="none" stroke="currentColor" stroke-width="2.2"/><ellipse cx="15" cy="17" rx="5.5" ry="12" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3.5 13h23M3.5 21h23" stroke="currentColor" stroke-width="1.5"/><path d="M25 1.5c-3 0-5.3 2.3-5.3 5.2 0 3.8 5.3 9 5.3 9s5.3-5.2 5.3-9c0-2.9-2.3-5.2-5.3-5.2z" fill="var(--ink-1)" stroke="var(--panel)" stroke-width="1.4"/><circle cx="25" cy="6.8" r="1.9" fill="var(--panel)"/></svg>
+      <span class="brand-text">
+        <span class="wordmark">Alva<b>Tour</b></span>
+        <span class="stats" id="stats">0 krajów</span>
+      </span>
+    </button>
+    <div class="search" id="searchWrap">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="search" type="search" placeholder="Szukaj kraju" autocomplete="off" aria-label="Szukaj kraju">
+      <ul class="search-results" id="searchResults" hidden></ul>
+    </div>
+    <div class="top-actions">
+      <button class="countdown" id="countdown" type="button" hidden></button>
+      <button class="btn-ghost icon-only" id="btnMenu" type="button" aria-label="Ustawienia">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="7" r="2.3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="17" r="2.3" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="globe" aria-label="Globus z mapą krajów"></canvas>
+    <canvas id="fx" aria-hidden="true"></canvas>
+    <div class="tooltip" id="tooltip" hidden></div>
+    <div class="loading" id="loading">Rozkładam mapę świata…</div>
+    <div class="time-banner" id="timeBanner" hidden><b id="timeYear"></b><span id="timeNames"></span></div>
+    <div class="hint" id="hint" hidden>
+      <strong>Kliknij kraj, aby wbić stempel.</strong>
+      <span>Przeciągnij, żeby obrócić glob. Kółko myszy lub dwa palce przybliżają.</span>
+      <button type="button" id="hintClose" class="link">Rozumiem</button>
+    </div>
+    <div class="map-controls">
+      <button type="button" id="btnLines" aria-label="Linie podróży z domu" aria-pressed="false" title="Linie podróży">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c4-10 12-12 16-12" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 3" stroke-linecap="round"/><circle cx="4" cy="18" r="2.2" fill="currentColor"/><path d="M17 3l3.5 3L17 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button type="button" id="zoomIn" aria-label="Przybliż">+</button>
+      <button type="button" id="zoomOut" aria-label="Oddal">−</button>
+      <button type="button" id="zoomReset" aria-label="Widok całego globu" title="Cały glob">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+    </div>
+    <button type="button" class="fab" id="btnAddPlace" aria-label="Dodaj miejsce">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v6M9 10h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Dodaj miejsce</span>
+    </button>
+    <!-- karta gier: ruletka, quiz, wehikuł -->
+    <div class="fun-card" id="funCard" hidden></div>
+    <div class="stamp-pop" id="stampPop" hidden></div>
+  </main>
+
+  <!-- Panel kraju -->
+  <aside class="sheet" id="sheet" hidden aria-labelledby="sheetTitle">
+    <div class="sheet-grip" id="sheetGrip"></div>
+    <div class="sheet-head">
+      <span class="flag" id="sheetFlag"></span>
+      <div class="sheet-title-wrap">
+        <h2 id="sheetTitle">Kraj</h2>
+        <p class="sheet-sub" id="sheetSub"></p>
+      </div>
+      <button class="btn-ghost icon-only" id="sheetClose" type="button" aria-label="Zamknij">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="sheetBody"></div>
+  </aside>
+
+  <!-- Widoki pełnoekranowe -->
+  <section class="view" id="view-list" hidden aria-labelledby="listTitle">
+    <div class="view-head">
+      <h2 id="listTitle">Moje kraje</h2>
+      <div class="seg" id="listTabs" role="radiogroup" aria-label="Rodzaj listy">
+        <button type="button" data-tab="visited" role="radio">Odwiedzone</button>
+        <button type="button" data-tab="wish" role="radio">Marzenia</button>
+        <button type="button" data-tab="places" role="radio">Miejsca</button>
+      </div>
+    </div>
+    <div class="list-toolbar">
+      <div class="seg" id="sortSeg" role="radiogroup" aria-label="Sortowanie">
+        <button type="button" data-sort="asc" role="radio">Od najdawniej</button>
+        <button type="button" data-sort="desc" role="radio">Od ostatnich</button>
+        <button type="button" data-sort="fav" role="radio">Ulubione</button>
+        <button type="button" data-sort="az" role="radio">A-Z</button>
+      </div>
+      <div class="places-tools" id="placesTools" hidden>
+        <div class="seg" id="plStSeg" role="radiogroup" aria-label="Status miejsc">
+          <button type="button" data-pst="all" role="radio">Wszystkie</button>
+          <button type="button" data-pst="visited" role="radio">Byłem</button>
+          <button type="button" data-pst="planned" role="radio">Do odwiedzenia</button>
+        </div>
+        <div class="btn-row"><button type="button" class="btn btn-soft" id="listAddPlace">Dodaj miejsce</button><button type="button" class="btn btn-soft" id="listAI">Plan od AI</button></div>
+        <div class="chips" id="plCatFilter"></div>
+      </div>
+      <p class="list-summary" id="listSummary"></p>
+    </div>
+    <div class="view-scroll"><ol class="timeline" id="timeline"></ol></div>
+  </section>
+
+  <section class="view" id="view-passport" hidden aria-labelledby="passTitle">
+    <div class="view-scroll passport-scroll" id="passport"></div>
+  </section>
+
+  <section class="view" id="view-stats" hidden aria-labelledby="statsTitle">
+    <div class="view-scroll" id="statsBody"></div>
+  </section>
+
+  <section class="view" id="view-fun" hidden aria-labelledby="funTitle">
+    <div class="view-scroll" id="funBody"></div>
+  </section>
+
+  <section class="view view-narrow" id="view-menu" hidden aria-labelledby="menuTitle">
+    <div class="view-head">
+      <h2 id="menuTitle">Ustawienia</h2>
+      <button class="btn-ghost icon-only" data-close-view type="button" aria-label="Zamknij ustawienia">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="view-scroll menu-body">
+      <div class="menu-group">
+        <h3>Podróżnik</h3>
+        <div class="field"><label for="setName">Imię w paszporcie</label><input id="setName" type="text" maxlength="40" placeholder="np. Kamil"></div>
+        <div class="field"><label for="setHome">Kraj domowy</label><select id="setHome"></select></div>
+      </div>
+      <div class="menu-group">
+        <h3>Mapa</h3>
+        <div class="seg" role="radiogroup" aria-label="Kolory">
+          <button type="button" data-colors="multi" role="radio">Kolorowe stemple</button>
+          <button type="button" data-colors="single" role="radio">Jeden kolor</button>
+        </div>
+        <label class="switch"><input type="checkbox" id="setLines"><span>Linie podróży z domu</span></label>
+        <label class="switch"><input type="checkbox" id="setSpin"><span>Glob kręci się sam, gdy nic nie robisz</span></label>
+        <label class="switch"><input type="checkbox" id="setSound"><span>Dźwięki i wibracje</span></label>
+      </div>
+      <div class="menu-group">
+        <h3>Kopia zapasowa</h3>
+        <p class="muted">Dane są zapisane tylko na tym urządzeniu. Zrób kopię, żeby przenieść je na inny telefon lub komputer.</p>
+        <div class="btn-row">
+          <button type="button" class="btn" id="btnExport">Pobierz plik JSON</button>
+          <button type="button" class="btn btn-soft" id="btnCopy">Kopiuj do schowka</button>
+        </div>
+        <div class="btn-row">
+          <label class="btn btn-soft" for="importFile">Wczytaj plik JSON</label>
+          <input type="file" id="importFile" accept="application/json,.json" hidden>
+          <button type="button" class="btn btn-soft" id="btnPasteToggle">Wklej dane</button>
+        </div>
+        <div id="pasteBox" hidden>
+          <textarea id="pasteArea" rows="5" placeholder="Wklej tutaj skopiowane dane JSON"></textarea>
+          <button type="button" class="btn" id="btnPasteImport">Importuj wklejone dane</button>
+        </div>
+        <p class="menu-msg" id="menuMsg" role="status"></p>
+      </div>
+      <div class="menu-group">
+        <h3>Wyczyść dane</h3>
+        <button type="button" class="btn btn-danger" id="btnWipe">Usuń wszystkie oznaczenia</button>
+        <div class="confirm" id="wipeConfirm" hidden>
+          <p>Na pewno? Tego nie da się cofnąć, chyba że masz kopię zapasową.</p>
+          <div class="btn-row">
+            <button type="button" class="btn btn-danger" id="btnWipeYes">Tak, usuń wszystko</button>
+            <button type="button" class="btn btn-soft" id="btnWipeNo">Anuluj</button>
+          </div>
+        </div>
+      </div>
+      <p class="muted small">AlvaTour · wersja <span id="appVersion"></span></p>
+    </div>
+  </section>
+
+  <!-- Dolny dok -->
+  <nav class="dock" id="dock" aria-label="Nawigacja">
+    <button type="button" data-view="globe" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M3 12h18M12 3c3.5 3.5 3.5 14.5 0 18M12 3c-3.5 3.5-3.5 14.5 0 18" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+      <span>Glob</span>
+    </button>
+    <button type="button" data-view="list">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="4.5" cy="6" r="1.5" fill="currentColor"/><circle cx="4.5" cy="12" r="1.5" fill="currentColor"/><circle cx="4.5" cy="18" r="1.5" fill="currentColor"/></svg>
+      <span>Lista</span>
+    </button>
+    <button type="button" data-view="passport">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="2" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="12" cy="10" r="3.4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 17h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span>Paszport</span>
+    </button>
+    <button type="button" data-view="stats">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M8.5 14l-1.5 7 5-2.5 5 2.5-1.5-7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 6.3l.9 1.8 2 .3-1.4 1.4.3 2-1.8-.9-1.8.9.3-2-1.4-1.4 2-.3z" fill="currentColor"/></svg>
+      <span>Odznaki</span>
+    </button>
+    <button type="button" data-view="fun">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.5" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.5" fill="currentColor"/></svg>
+      <span>Zabawa</span>
+    </button>
+  </nav>
+
+  <!-- Modale -->
+  <div class="modal" id="modal" hidden role="dialog" aria-modal="true">
+    <div class="modal-card" id="modalCard"></div>
+  </div>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+</div>
+<!--APP-END-->
+<script src="vendor/d3.min.js"></script>
+<script src="vendor/topojson-client.min.js"></script>
+<!--APP-SCRIPTS-->
+<script src="core.js"></script>
+<script src="globe.js"></script>
+<script src="panel.js"></script>
+<script src="views.js"></script>
+<script src="fun.js"></script>
+<script src="places.js"></script>
+<script src="main.js"></script>
+<!--/APP-SCRIPTS-->
+</body>
+</html>
