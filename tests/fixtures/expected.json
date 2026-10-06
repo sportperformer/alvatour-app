@@ -1,0 +1,6 @@
+{
+  "_opis": "Oczekiwane liczności po wczytaniu każdego fixture. Każda nowa wersja aplikacji musi je zachować.",
+  "web-alvatour-v1-export.json": { "countries": 3, "wishes": 1, "visits": 1, "places": 2, "notes": 3, "badges": 1 },
+  "localstorage-bylem-tu-v1.json": { "countries": 2, "wishes": 0, "visits": 1, "places": 0, "notes": 2, "badges": 0 },
+  "apk-1.0.0-export.json": { "countries": 2, "wishes": 1, "visits": 2, "places": 2, "notes": 4, "badges": 2 }
+}

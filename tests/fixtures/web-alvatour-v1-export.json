@@ -1,0 +1,19 @@
+{
+  "app": "alvatour",
+  "exportedAt": "2026-09-30T18:22:05.114Z",
+  "version": 2,
+  "countries": {
+    "PL": { "visited": true, "wish": false, "firstYear": 1985, "visits": [{ "year": 2001, "note": "Mazury" }], "notes": "", "rating": 5, "plannedDate": "", "addedAt": "2026-08-01T10:00:00.000Z" },
+    "HR": { "visited": true, "wish": false, "firstYear": 2015, "visits": [], "notes": "Split i Hvar", "rating": 4, "plannedDate": "", "addedAt": "2026-08-01T10:01:00.000Z" },
+    "IS": { "visited": false, "wish": true, "firstYear": null, "visits": [], "notes": "", "rating": 0, "plannedDate": "2027-02-10", "addedAt": "2026-08-02T09:00:00.000Z" },
+    "VA": { "visited": true, "wish": false, "firstYear": 2018, "visits": [], "notes": "", "rating": 3, "plannedDate": "", "addedAt": "2026-08-03T09:00:00.000Z" }
+  },
+  "settings": { "colors": "multi", "sort": "asc", "listTab": "visited", "hintSeen": true, "onboarded": true, "name": "Podróżnik", "home": "PL", "lines": false, "spin": true, "sound": true, "placeSt": "all", "placeCat": "all" },
+  "badges": { "first": "2026-08-01T10:00:00.000Z" },
+  "games": { "quizBest": 6, "quizPlayed": 2, "timelapse": 0, "roulette": 1, "aiImports": 0 },
+  "places": [
+    { "id": "pmf1a2b3", "name": "Konoba Fetivi", "addr": "Tomića stine 4, Split", "city": "Split", "cc": "HR", "lat": 43.5072, "lng": 16.4307, "approx": false, "cat": "food", "status": "visited", "date": "2015-07-12", "rating": 5, "note": "Ryba dnia", "url": "https://www.google.com/maps/place/Konoba+Fetivi/@43.5072,16.4307,17z", "src": "gmaps", "addedAt": "2026-08-05T10:00:00.000Z" },
+    { "id": "pmf1a2b4", "name": "Hallgrímskirkja", "addr": "Reykjavík", "city": "Reykjavík", "cc": "IS", "lat": 64.1417, "lng": -21.9266, "approx": false, "cat": "sight", "status": "planned", "date": "", "rating": 0, "note": "", "url": "", "src": "search", "addedAt": "2026-08-06T10:00:00.000Z" }
+  ],
+  "updatedAt": "2026-09-30T18:20:00.000Z"
+}

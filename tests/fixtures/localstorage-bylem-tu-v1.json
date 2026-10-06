@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "countries": {
+    "DE": { "visited": true, "firstYear": 2005, "visits": [{ "year": 2010, "note": "Berlin" }], "notes": "Pierwszy wyjazd", "rating": 4 },
+    "FR": { "visited": true, "firstYear": 2012, "notes": "", "rating": 0 },
+    "XX": { "visited": false, "wish": false }
+  },
+  "settings": { "colors": "multi", "sort": "asc" }
+}

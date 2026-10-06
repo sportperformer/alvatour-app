@@ -1,0 +1,13 @@
+node_modules/
+www/
+coverage/
+*.log
+.DS_Store
+
+# Klucze podpisu: NIGDY w repozytorium
+*.jks
+*.keystore
+*.p12
+*.pfx
+keystore.properties
+assets/icon-dev-preview.png
