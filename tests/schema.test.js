@@ -19,6 +19,7 @@ describe('zasady migracji', () => {
     const { createHash } = await import('node:crypto');
     const RELEASED = {
       1: 'f647c49760718b0b436569a2497cc23324e597a979f84f118e6bc96bda702130',
+      2: 'd12ff1eb0e8b152b21a7158fabc5d77651c66897d80b83836240332b0f45d22c',
     };
     for (const [v, hash] of Object.entries(RELEASED)) {
       const m = MIGRATIONS.find((x) => x.version === Number(v));

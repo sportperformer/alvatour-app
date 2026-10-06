@@ -1,7 +1,8 @@
-// Test na emulatorze Androida (GitHub Actions): prawdziwy APK DEV (debug), prawdziwe SQLite, pliki i udostępnianie.
-// Uruchamiany w jobie "Emulator Android 14" po zbudowaniu app-dev-debug.apk.
+// Test na emulatorze Androida (GitHub Actions): prawdziwy, podpisany APK DEV, prawdziwe SQLite, pliki i udostępnianie.
+// Użycie: node scripts/emulator-smoke.mjs <nowy-AlvaTour-DEV.apk> [poprzedni-AlvaTour-DEV.apk]
 //
 // Sprawdza:
+//  0. aktualizację: poprzednia wersja z danymi -> nowa wersja -> te same dane (+ kopia przed migracją),
 //  1. aplikacja startuje bez błędów, baza się otwiera,
 //  2. zapis do SQLite + kopia w Documents/AlvaTour-DEV/kopie (widoczna dla innych aplikacji),
 //  3. dane są po ponownym uruchomieniu,
@@ -13,13 +14,27 @@ import { _android } from 'playwright-core';
 
 const PKG = 'pl.sportperformer.alvatour.dev';
 const ACTIVITY = `${PKG}/pl.sportperformer.alvatour.MainActivity`;
-const APK = process.argv[2] || 'android/app/build/outputs/apk/dev/debug/app-dev-debug.apk';
+const APK = process.argv[2];
+const PREV_APK = process.argv[3] || '';
+if (!APK) throw new Error('Podaj ścieżkę do APK DEV');
 const DOCS = '/sdcard/Documents/AlvaTour-DEV/kopie';
 
 const adb = (...args) => execFileSync('adb', args, { encoding: 'utf8' }).trim();
 const sh = (cmd) => adb('shell', cmd);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failures = 0;
+/** Różnice między dwoma obiektami: lista "ścieżka: przed -> po" (kolejność kluczy bez znaczenia). */
+function diffPaths(a, b, path = '', out = []) {
+  if (out.length > 20) return out;
+  const isObj = (x) => x && typeof x === 'object';
+  if (isObj(a) && isObj(b)) {
+    // pola "_..." są tymczasowe (np. pozycja pinezki na ekranie) i nie są danymi użytkownika
+    for (const k of new Set([...Object.keys(a), ...Object.keys(b)].filter((x) => !x.startsWith('_')))) diffPaths(a[k], b[k], path ? `${path}.${k}` : k, out);
+  } else if (JSON.stringify(a) !== JSON.stringify(b)) {
+    out.push(`${path}: ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
+  }
+  return out;
+}
 function check(ok, label, extra = '') {
   console.log(`${ok ? 'OK  ' : 'BŁĄD'} ${label}${extra ? ': ' + extra : ''}`);
   if (!ok) failures++;
@@ -29,9 +44,9 @@ const [device] = await _android.devices();
 if (!device) throw new Error('Brak emulatora');
 device.setDefaultTimeout(90000);
 
-async function pageForCurrentProcess() {
-  for (let i = 0; i < 60; i++) {
-    const pid = sh(`pidof ${PKG}`).split(/\s+/)[0];
+async function pageForCurrentProcess(tries = 60) {
+  for (let i = 0; i < tries; i++) {
+    const pid = sh(`pidof ${PKG} || true`).split(/\s+/)[0]; // pidof kończy się błędem, gdy proces jeszcze nie działa
     if (pid) {
       try {
         const wv = await device.webView({ socketName: `webview_devtools_remote_${pid}` }, { timeout: 5000 });
@@ -45,10 +60,51 @@ async function pageForCurrentProcess() {
   throw new Error('Nie udało się połączyć z WebView aplikacji');
 }
 
-async function launch(shellExtra = '') {
+async function launch(shellExtra = '', tries = 60) {
   sh(`am force-stop ${PKG}`);
   sh(`am start -W -n ${ACTIVITY} ${shellExtra}`);
-  return pageForCurrentProcess();
+  return pageForCurrentProcess(tries);
+}
+
+const SEED = async () => {
+  state.settings.onboarded = true;
+  state.settings.name = 'Emulator';
+  state.countries.PT = { visited: true, wish: false, firstYear: 2019, visits: [{ year: 2022, note: 'Porto' }], notes: 'test emulatora', rating: 5, plannedDate: '', addedAt: '2026-01-01T00:00:00.000Z' };
+  state.countries.JP = { visited: false, wish: true, firstYear: null, visits: [], notes: 'marzenie', rating: 0, plannedDate: '2027-04-01', addedAt: '2026-01-02T00:00:00.000Z' };
+  state.places = [{ id: 'pemu1', name: 'Café Majestic', addr: 'Porto', city: 'Porto', cc: 'PT', lat: 41.14706, lng: -8.60654, approx: false, cat: 'cafe', status: 'visited', date: '2022-05-03', rating: 5, note: 'x', url: '', src: 'test', addedAt: '2026-01-03T00:00:00.000Z' }];
+  saveNow();
+  await AlvaData.flush();
+  return { state: JSON.parse(JSON.stringify({ countries: state.countries, places: state.places, settings: state.settings })), status: await AlvaData.status() };
+};
+
+// 0. aktualizacja z poprzedniej wersji
+if (PREV_APK) {
+  console.log('Test aktualizacji z', PREV_APK);
+  try { adb('uninstall', PKG); } catch (e) { /* nie było zainstalowane */ }
+  adb('install', PREV_APK);
+  let old = null;
+  try { old = await launch('', 20); } catch (e) { old = null; }
+  if (!old) {
+    console.log('POMINIĘTO test aktualizacji: poprzednia wersja nie pozwala sterować sobą automatycznie (wersje sprzed 1.0.1).');
+  } else {
+    const before = await old.evaluate(SEED);
+    adb('install', '-r', APK); // aktualizacja jak na telefonie: dane zostają
+    const page0 = await launch();
+    const after = await page0.evaluate(async () => ({
+      state: JSON.parse(JSON.stringify({ countries: state.countries, places: state.places, settings: state.settings })),
+      status: await AlvaData.status(),
+      backups: (await AlvaData.listBackups()).map((b) => b.name),
+    }));
+    const diffs = diffPaths(before.state, after.state);
+    check(!diffs.length, 'aktualizacja: te same dane po instalacji nowej wersji', diffs.join(' | '));
+    check(after.status.readOnly === null, 'aktualizacja: aplikacja nie jest w trybie bezpiecznym', String(after.status.readOnly));
+    if (after.status.schemaVersion > before.status.schemaVersion) {
+      const pre = `pre-migration-v${before.status.schemaVersion}-to-v${after.status.schemaVersion}-`;
+      check(after.backups.some((n) => n.startsWith(pre)), `aktualizacja: kopia przed migracją (${pre}…)`, after.backups.join(', '));
+    } else {
+      console.log(`(schemat bez zmian: v${after.status.schemaVersion})`);
+    }
+  }
 }
 
 console.log('Instalacja', APK);

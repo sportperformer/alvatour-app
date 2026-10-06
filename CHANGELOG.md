@@ -2,6 +2,12 @@
 
 Każda wersja ma tu sekcję `## <wersja>`. Jej treść trafia do opisu wydania w GitHub Releases.
 
+## 1.0.1
+
+- Aktualizacja formatu danych (schemat 2): data ostatniej zmiany każdego kraju i miejsca. Przygotowanie pod przyszłe funkcje (np. „ostatnio edytowane”). Twoje dotychczasowe dane zostają bez zmian, a przed aktualizacją powstaje kopia `pre-migration-v1-to-v2-….json`
+- Automatyczny test aktualizacji na emulatorze: poprzednia wersja z danymi → nowa wersja → te same dane
+- Poprawka: tymczasowa pozycja pinezki na ekranie nie jest już zapisywana w bazie i kopiach (mniej zbędnych zapisów przy obracaniu globu)
+
 ## 1.0.0
 
 - AlvaTour jako aplikacja Android (APK), bez instalacji przez Chrome

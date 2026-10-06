@@ -63,6 +63,14 @@ export const MIGRATIONS = [
       )`,
     ],
   },
+  {
+    version: 2,
+    name: 'Data ostatniej zmiany kraju i miejsca (updated_at), wydane w 1.0.1',
+    statements: [
+      'ALTER TABLE countries ADD COLUMN updated_at TEXT',
+      'ALTER TABLE places ADD COLUMN updated_at TEXT',
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1].version;

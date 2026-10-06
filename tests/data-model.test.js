@@ -21,6 +21,19 @@ describe('normalizeState', () => {
     expect(n.settings.futureSetting).toBe(42);
     expect(n.journal).toEqual([{ t: 'nowa sekcja' }]);
   });
+  it('pomija pola tymczasowe "_..." (np. pozycja pinezki na ekranie), nie gubiąc danych', () => {
+    const s = sampleState();
+    s.places[0]._s = [109.04, 214.39];
+    s.countries.PL._hover = true;
+    s.countries.PT.visits[0]._tmp = 1;
+    s._cache = { x: 1 };
+    const n = normalizeState(s);
+    expect(n.places[0]._s).toBeUndefined();
+    expect(n.countries.PL._hover).toBeUndefined();
+    expect(n.countries.PT.visits[0]._tmp).toBeUndefined();
+    expect(n._cache).toBeUndefined();
+    expect(n).toEqual(normalizeState(sampleState()));
+  });
   it('pomija kopertę eksportu webowego', () => {
     const n = normalizeState({ app: 'alvatour', exportedAt: 'x', ...sampleState() });
     expect(n.app).toBeUndefined();
