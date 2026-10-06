@@ -23,6 +23,17 @@ const adb = (...args) => execFileSync('adb', args, { encoding: 'utf8' }).trim();
 const sh = (cmd) => adb('shell', cmd);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failures = 0;
+/** Różnice między dwoma obiektami: lista "ścieżka: przed -> po" (kolejność kluczy bez znaczenia). */
+function diffPaths(a, b, path = '', out = []) {
+  if (out.length > 20) return out;
+  const isObj = (x) => x && typeof x === 'object';
+  if (isObj(a) && isObj(b)) {
+    for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) diffPaths(a[k], b[k], path ? `${path}.${k}` : k, out);
+  } else if (JSON.stringify(a) !== JSON.stringify(b)) {
+    out.push(`${path}: ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
+  }
+  return out;
+}
 function check(ok, label, extra = '') {
   console.log(`${ok ? 'OK  ' : 'BŁĄD'} ${label}${extra ? ': ' + extra : ''}`);
   if (!ok) failures++;
@@ -83,7 +94,8 @@ if (PREV_APK) {
       status: await AlvaData.status(),
       backups: (await AlvaData.listBackups()).map((b) => b.name),
     }));
-    check(JSON.stringify(after.state) === JSON.stringify(before.state), 'aktualizacja: te same dane po instalacji nowej wersji');
+    const diffs = diffPaths(before.state, after.state);
+    check(!diffs.length, 'aktualizacja: te same dane po instalacji nowej wersji', diffs.join(' | '));
     check(after.status.readOnly === null, 'aktualizacja: aplikacja nie jest w trybie bezpiecznym', String(after.status.readOnly));
     if (after.status.schemaVersion > before.status.schemaVersion) {
       const pre = `pre-migration-v${before.status.schemaVersion}-to-v${after.status.schemaVersion}-`;
