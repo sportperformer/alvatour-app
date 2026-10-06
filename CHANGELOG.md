@@ -2,6 +2,11 @@
 
 Każda wersja ma tu sekcję `## <wersja>`. Jej treść trafia do opisu wydania w GitHub Releases.
 
+## 1.1.1
+
+- **Planowana podróż** (lista marzeń): zamiast kalendarza wybór dzień / miesiąc / rok; wystarczy sam rok albo miesiąc. Odliczanie dopasowane: „Za 24 dni”, „Za 6 miesięcy”, „W tym roku!”, a na górze np. „w kwietniu 2027”
+- **Odliczanie na górze ekranu można wyłączyć**: w Ustawieniach (Mapa) albo przełącznikiem w karcie kraju z listy marzeń
+
 ## 1.1.0
 
 - **Daty z dniem i miesiącem (opcjonalnie)**: w kraju (pierwszy raz i kolejne wizyty) oraz w miejscach możesz wybrać pełną datę (np. 15.04.2024), sam miesiąc i rok albo tylko rok, gdy nie pamiętasz dokładnie

@@ -257,6 +257,8 @@ h2, h3 { text-wrap: balance; }
 .dpick .dp-y { font-variant-numeric: tabular-nums; font-weight: 600; }
 .dpick select:disabled { opacity: 0.5; }
 .field-label .muted { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.field > label.switch { font-size: 15px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--fg); }
+#cdInline:empty { display: none; }
 .dpick select:focus, .dpick input:focus { outline: none; border-color: var(--accent); background: var(--panel); }
 .visit-row input { padding: 8px 10px; width: 100%; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); min-width: 0; }
 .visit-row .year { font-variant-numeric: tabular-nums; font-weight: 600; }

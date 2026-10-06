@@ -118,20 +118,37 @@ const ICON_TRASH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14
 const ICON_PLUS = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 const ICON_HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>';
 
-function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  const d = new Date(dateStr + 'T00:00:00');
-  if (isNaN(d)) return null;
-  const t = new Date(); t.setHours(0, 0, 0, 0);
-  return Math.round((d - t) / 86400000);
+/* ---------- Planowana podróż: pełna data, sam miesiąc albo sam rok ---------- */
+const MONTHS_LOC = ['styczniu', 'lutym', 'marcu', 'kwietniu', 'maju', 'czerwcu', 'lipcu', 'sierpniu', 'wrześniu', 'październiku', 'listopadzie', 'grudniu'];
+/**
+ * Odliczanie do podróży. Zwraca null (brak/zła data) albo
+ * { days: dni do początku okresu (0 = już trwa), past, text: do karty i listy, short: do paska na górze (null gdy minął) }.
+ */
+function tripCountdown(dateStr) {
+  const p = D.parsePartial(dateStr);
+  if (!p) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const start = new Date(p.y, (p.m || 1) - 1, p.d || 1);
+  const end = p.d ? new Date(p.y, p.m - 1, p.d) : p.m ? new Date(p.y, p.m, 0) : new Date(p.y, 11, 31);
+  if (end < today) return { days: -1, past: true, text: 'Termin minął. Byłeś? Wbij stempel!', short: null };
+  const days = Math.max(0, Math.round((start - today) / 86400000));
+  const ty = today.getFullYear(), tm = today.getMonth() + 1;
+  if (p.d) {
+    if (days === 0) return { days, text: 'Wylot dziś!', short: 'dziś!' };
+    if (days === 1) return { days, text: 'Wylot jutro!', short: 'jutro!' };
+    return { days, text: `Za ${days} dni`, short: `za ${days} dni` };
+  }
+  if (p.m) {
+    const months = (p.y - ty) * 12 + (p.m - tm);
+    const when = `w ${MONTHS_LOC[p.m - 1]}${p.y !== ty ? ' ' + p.y : ''}`;
+    if (months <= 0) return { days, text: 'W tym miesiącu!', short: 'w tym miesiącu!' };
+    if (months === 1) return { days, text: 'W przyszłym miesiącu', short: when };
+    return { days, text: `Za ${months} ${plural(months, ['miesiąc', 'miesiące', 'miesięcy'])}`, short: when };
+  }
+  if (p.y === ty) return { days, text: 'W tym roku!', short: 'w tym roku' };
+  return { days, text: `W ${p.y}`, short: `w ${p.y}` };
 }
-function countdownText(days) {
-  if (days == null) return '';
-  if (days < 0) return 'Termin minął. Byłeś? Wbij stempel!';
-  if (days === 0) return 'Wylot dziś!';
-  if (days === 1) return 'Wylot jutro!';
-  return `Za ${days} dni`;
-}
+const countdownShown = () => state.settings.countdown !== false;
 
 function renderSheet() {
   const id = selectedId;
@@ -149,10 +166,12 @@ function renderSheet() {
       <button type="button" class="status-btn wish ${wish ? 'on' : ''}" id="markWish" aria-pressed="${!!wish}">${svgIcon('plane', 22)}<span>${wish ? 'Na liście marzeń' : 'Chcę tu pojechać'}</span></button>
     </div>`;
     if (wish) {
-      const dd = daysUntil(c.plannedDate);
+      const cd = tripCountdown(c.plannedDate);
       html += `<div class="field">
-          <label for="plannedDate">Planowana podróż</label>
-          <div class="date-row"><input id="plannedDate" type="date" value="${esc(c.plannedDate)}"><span class="countdown-inline" id="cdInline">${esc(countdownText(dd))}</span></div>
+          <span class="field-label">Planowana podróż <span class="muted small">(wystarczy rok albo miesiąc)</span></span>
+          <div id="plannedDate">${datePickerHTML(D.parsePartial(c.plannedDate) ? c.plannedDate : '', { future: true, label: 'Planowana podróż' })}</div>
+          <span class="countdown-inline" id="cdInline">${esc(cd ? cd.text : '')}</span>
+          <label class="switch"><input type="checkbox" id="cdShow" ${countdownShown() ? 'checked' : ''}><span>Pokazuj odliczanie na górze ekranu</span></label>
         </div>
         <div class="field"><label for="notes">Co chcę tam zobaczyć</label>
           <textarea id="notes" rows="3" placeholder="Miejsca, jedzenie, ludzie, pomysły">${esc(c.notes)}</textarea></div>`;
@@ -260,10 +279,12 @@ function bindSheet(id, f, c) {
       saveNow(); afterDataChange(); renderSheet();
     });
     if (c && c.wish) {
-      $('plannedDate').addEventListener('change', (e) => {
-        c.plannedDate = e.target.value; saveNow(); updateCountdown();
-        $('cdInline').textContent = countdownText(daysUntil(c.plannedDate));
+      bindDatePicker($('plannedDate').querySelector('.dpick'), (v) => {
+        c.plannedDate = v; saveNow(); updateCountdown();
+        const cd = tripCountdown(c.plannedDate);
+        $('cdInline').textContent = cd ? cd.text : '';
       });
+      $('cdShow').addEventListener('change', (e) => { setCountdownShown(e.target.checked); });
       $('notes').addEventListener('input', (e) => { c.notes = e.target.value; saveSoon(); });
     }
     return;
