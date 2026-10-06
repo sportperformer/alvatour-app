@@ -1,0 +1,127 @@
+{
+ "app": "alvatour",
+ "format_version": 1,
+ "schema_version": 2,
+ "exported_at": "2026-10-06T12:00:00.000Z",
+ "app_version": "1.1.1",
+ "reason": "manual",
+ "counts": {
+  "countries": 2,
+  "wishes": 1,
+  "visits": 2,
+  "places": 2,
+  "notes": 4,
+  "badges": 2
+ },
+ "checksum": "sha256:08e9c41aef9b80618aadb19fc107e0e318bf15d7eadd9c1518433157c35b1887",
+ "data": {
+  "version": 2,
+  "countries": {
+   "PL": {
+    "visited": true,
+    "wish": false,
+    "firstYear": 1990,
+    "visits": [],
+    "notes": "Dom",
+    "rating": 5,
+    "plannedDate": "",
+    "addedAt": "2026-01-01T00:00:00.000Z"
+   },
+   "PT": {
+    "visited": true,
+    "wish": false,
+    "firstYear": 2019,
+    "firstDate": "2019-08-03",
+    "visits": [
+     {
+      "year": 2022,
+      "note": "Porto, wino",
+      "date": "2022-05"
+     },
+     {
+      "year": null,
+      "note": ""
+     }
+    ],
+    "notes": "",
+    "rating": 4,
+    "plannedDate": "",
+    "addedAt": "2026-01-02T00:00:00.000Z"
+   },
+   "JP": {
+    "visited": false,
+    "wish": true,
+    "firstYear": null,
+    "visits": [],
+    "notes": "Sakura",
+    "rating": 0,
+    "plannedDate": "2027-04-01",
+    "addedAt": "2026-01-03T00:00:00.000Z"
+   }
+  },
+  "settings": {
+   "colors": "single",
+   "sort": "desc",
+   "listTab": "places",
+   "hintSeen": true,
+   "onboarded": true,
+   "name": "Test",
+   "home": "PL",
+   "lines": true,
+   "spin": false,
+   "sound": true,
+   "placeSt": "all",
+   "placeCat": "food"
+  },
+  "badges": {
+   "first": "2026-01-01T00:00:00.000Z",
+   "v4": "2026-02-01T00:00:00.000Z"
+  },
+  "games": {
+   "quizBest": 7,
+   "quizPlayed": 3,
+   "timelapse": 1,
+   "roulette": 0,
+   "aiImports": 2
+  },
+  "places": [
+   {
+    "id": "p1",
+    "name": "Café Majestic",
+    "addr": "Rua Santa Catarina 112, Porto",
+    "city": "Porto",
+    "cc": "PT",
+    "lat": 41.14706,
+    "lng": -8.60654,
+    "approx": false,
+    "cat": "cafe",
+    "status": "visited",
+    "date": "2022-05",
+    "rating": 5,
+    "note": "Najlepsze ciastko",
+    "url": "https://maps.app.goo.gl/abc",
+    "src": "gmaps",
+    "addedAt": "2026-01-05T00:00:00.000Z"
+   },
+   {
+    "id": "p2",
+    "name": "Fushimi Inari",
+    "addr": "Kioto",
+    "city": "Kioto",
+    "cc": "JP",
+    "lat": 34.9671,
+    "lng": 135.7727,
+    "approx": true,
+    "cat": "sight",
+    "status": "planned",
+    "date": "",
+    "rating": 0,
+    "note": "",
+    "url": "",
+    "src": "ai",
+    "addedAt": "2026-01-06T00:00:00.000Z"
+   }
+  ],
+  "updatedAt": "2026-03-01T12:00:00.000Z"
+ }
+}

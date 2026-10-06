@@ -44,14 +44,23 @@ function updateStats() {
 function updateCountdown() {
   const el = $('countdown');
   let best = null;
-  for (const id of wishIds()) {
-    const d = daysUntil(entry(id).plannedDate);
-    if (d != null && d >= 0 && (!best || d < best.d)) best = { id, d };
+  if (countdownShown()) {
+    for (const id of wishIds()) {
+      const cd = tripCountdown(entry(id).plannedDate);
+      if (cd && !cd.past && (!best || cd.days < best.cd.days)) best = { id, cd };
+    }
   }
   if (!best) { el.hidden = true; return; }
   el.hidden = false;
-  el.innerHTML = `${svgIcon('plane', 16)}<span><b>${esc(countryName(best.id))}</b> ${best.d === 0 ? 'dziś!' : best.d === 1 ? 'jutro!' : `za ${best.d} dni`}</span>`;
+  el.innerHTML = `${svgIcon('plane', 16)}<span><b>${esc(countryName(best.id))}</b> ${esc(best.cd.short)}</span>`;
   el.onclick = () => { showView('globe'); openCountry(best.id, { fly: true }); };
+}
+/** Odliczanie na górze ekranu: włącz/wyłącz (Ustawienia i karta kraju z listy marzeń). */
+function setCountdownShown(on) {
+  state.settings.countdown = !!on;
+  saveNow(); updateCountdown();
+  if ($('setCountdown')) $('setCountdown').checked = !!on;
+  if (!on) toast('Odliczanie ukryte. Włączysz je w Ustawieniach.');
 }
 
 /* ================= Lista ================= */
@@ -69,8 +78,8 @@ function renderList() {
   if (tab === 'wish') {
     const ids = wishIds().filter((id) => byId.has(id));
     ids.sort((a, b) => {
-      const da = entry(a).plannedDate, db = entry(b).plannedDate;
-      if (da && db) return da.localeCompare(db); if (da) return -1; if (db) return 1; return byName(a, b);
+      const da = D.parsePartial(entry(a).plannedDate) ? D.partialSortKey(entry(a).plannedDate) : '', db = D.parsePartial(entry(b).plannedDate) ? D.partialSortKey(entry(b).plannedDate) : '';
+      if (da && db) return da < db ? -1 : da > db ? 1 : byName(a, b); if (da) return -1; if (db) return 1; return byName(a, b);
     });
     $('listSummary').textContent = ids.length ? `${countries(ids.length)} do odwiedzenia` : '';
     if (!ids.length) {
@@ -78,12 +87,12 @@ function renderList() {
       return;
     }
     ol.innerHTML = ids.map((id) => {
-      const c = entry(id), d = daysUntil(c.plannedDate);
-      const when = c.plannedDate ? new Date(c.plannedDate + 'T00:00:00').toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+      const c = entry(id), cd = tripCountdown(c.plannedDate);
+      const when = cd ? D.formatPartial(c.plannedDate) : '';
       return `<li><button type="button" class="entry wish-entry" data-id="${esc(id)}" style="--stamp:${inkOfId(id)}">
         <span class="bar"></span>${flagHTML(id, 'eflag')}
         <span class="ename">${esc(countryName(id))}<span class="emeta">${esc(c.notes.trim().split('\n')[0] || (meta(id).c ? CONTINENTS[meta(id).c] : ''))}</span></span>
-        <span class="eyears">${when ? `<span class="chip chip-strong">${esc(when)}</span><span class="chip">${esc(countdownText(d))}</span>` : ''}</span>
+        <span class="eyears">${when ? `<span class="chip chip-strong">${esc(when)}</span><span class="chip">${esc(cd.text)}</span>` : ''}</span>
       </button></li>`;
     }).join('');
     return;
@@ -368,6 +377,7 @@ function openMenu() {
   $('setLines').checked = state.settings.lines;
   $('setSpin').checked = state.settings.spin;
   $('setSound').checked = state.settings.sound;
+  $('setCountdown').checked = countdownShown();
   menuMsg(''); $('wipeConfirm').hidden = true; $('pasteBox').hidden = true;
   renderBackupStatus();
 }
@@ -375,6 +385,7 @@ $('setName').addEventListener('input', (e) => { state.settings.name = e.target.v
 $('setHome').addEventListener('change', (e) => { state.settings.home = e.target.value; saveNow(); afterDataChange(); });
 $('setLines').addEventListener('change', (e) => { state.settings.lines = e.target.checked; $('btnLines').setAttribute('aria-pressed', String(e.target.checked)); saveNow(); requestRender(); });
 $('setSpin').addEventListener('change', (e) => { state.settings.spin = e.target.checked; saveNow(); });
+$('setCountdown').addEventListener('change', (e) => setCountdownShown(e.target.checked));
 $('setSound').addEventListener('change', (e) => { state.settings.sound = e.target.checked; saveNow(); if (e.target.checked) sfx.pop(); });
 $('view-menu').querySelector('[data-colors]').parentElement.addEventListener('click', (e) => {
   const b = e.target.closest('[data-colors]'); if (!b) return;
