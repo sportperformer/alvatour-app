@@ -7,9 +7,10 @@ import { META_SQL, MIGRATIONS } from './schema.js';
 import { emptyState, normalizeState, countsOf, sameCounts } from './model.js';
 
 const TABLES = {
-  countries: { key: ['id'], cols: ['id', 'visited', 'wish', 'first_year', 'notes', 'rating', 'planned_date', 'added_at', 'extra'] },
+  // stamp: tabela ma kolumnę updated_at (od schematu 2), uzupełnianą przy każdym zapisie wiersza
+  countries: { key: ['id'], stamp: true, cols: ['id', 'visited', 'wish', 'first_year', 'notes', 'rating', 'planned_date', 'added_at', 'extra'] },
   visits: { key: ['country_id', 'pos'], cols: ['country_id', 'pos', 'year', 'note', 'extra'] },
-  places: { key: ['id'], cols: ['id', 'pos', 'name', 'addr', 'city', 'cc', 'lat', 'lng', 'approx', 'cat', 'status', 'date', 'rating', 'note', 'url', 'src', 'added_at', 'extra'] },
+  places: { key: ['id'], stamp: true, cols: ['id', 'pos', 'name', 'addr', 'city', 'cc', 'lat', 'lng', 'approx', 'cat', 'status', 'date', 'rating', 'note', 'url', 'src', 'added_at', 'extra'] },
   badges: { key: ['id'], cols: ['id', 'value'] },
   kv: { key: ['section', 'key'], cols: ['section', 'key', 'value'] },
 };
@@ -89,6 +90,23 @@ export function rowsToState(t) {
 export function createRepository(db, { now = () => new Date(), migrations = MIGRATIONS } = {}) {
   const target = migrations[migrations.length - 1].version;
   let snapshot = null; // ostatnio zapisane wiersze (do zapisu tylko zmian)
+  let stamped = null; // tabele, które mają już kolumnę updated_at (stara baza przed migracją jej nie ma)
+
+  async function stampedTables() {
+    if (stamped) return stamped;
+    stamped = new Set();
+    for (const t of TABLE_ORDER) {
+      if (!TABLES[t].stamp) continue;
+      const cols = await db.all(`PRAGMA table_info(${t})`, []);
+      if (cols.some((c) => c.name === 'updated_at')) stamped.add(t);
+    }
+    return stamped;
+  }
+  /** INSERT dla wiersza; w tabelach z updated_at dopisuje datę zapisu. */
+  function insertOp(verb, t, vals, st, at) {
+    const cols = st.has(t) ? [...TABLES[t].cols, 'updated_at'] : TABLES[t].cols;
+    return [`${verb} INTO ${t} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`, st.has(t) ? [...vals, at] : vals];
+  }
 
   async function tx(fn) {
     await db.begin();
@@ -118,7 +136,7 @@ export function createRepository(db, { now = () => new Date(), migrations = MIGR
     return state;
   }
 
-  function diff(next) {
+  function diff(next, st, at) {
     const ops = [];
     let deletedItems = 0;
     for (const t of TABLE_ORDER) {
@@ -133,7 +151,7 @@ export function createRepository(db, { now = () => new Date(), migrations = MIGR
       for (const [k, vals] of after) {
         const old = before.get(k);
         if (!old || JSON.stringify(old) !== JSON.stringify(vals)) {
-          ops.push([`INSERT OR REPLACE INTO ${t} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`, vals]);
+          ops.push(insertOp('INSERT OR REPLACE', t, vals, st, at));
         }
       }
     }
@@ -183,6 +201,7 @@ export function createRepository(db, { now = () => new Date(), migrations = MIGR
       } catch (e) {
         throw e instanceof MigrationError ? Object.assign(e, { from, to: target, backup }) : new MigrationError(String(e && e.message || e), { from, to: target, backup, cause: e });
       }
+      stamped = null;
       return { status: fresh ? 'created' : 'migrated', from, to: target, backup };
     },
 
@@ -190,7 +209,7 @@ export function createRepository(db, { now = () => new Date(), migrations = MIGR
     async persist(state, { beforeMassDelete } = {}) {
       if (!snapshot) await load();
       const next = stateToRows(normalizeState(state));
-      const { ops, deletedItems } = diff(next);
+      const { ops, deletedItems } = diff(next, await stampedTables(), now().toISOString());
       if (!ops.length) return { changed: 0, deletedItems: 0 };
       if (deletedItems >= 3 && beforeMassDelete) await beforeMassDelete(deletedItems);
       await tx(async () => {
@@ -206,11 +225,13 @@ export function createRepository(db, { now = () => new Date(), migrations = MIGR
       const data = normalizeState(state);
       const expected = countsOf(data);
       const rows = stateToRows(data);
+      const st = await stampedTables();
+      const at = now().toISOString();
       await tx(async () => {
         for (const t of TABLE_ORDER) await db.run(`DELETE FROM ${t}`, []);
         for (const t of TABLE_ORDER) {
           const { cols } = TABLES[t];
-          for (const vals of rows[t].values()) await db.run(`INSERT INTO ${t} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`, vals);
+          for (const vals of rows[t].values()) await db.run(...insertOp('INSERT', t, vals, st, at));
         }
         const after = countsOf(rowsToState(await readTables()));
         if (!sameCounts(expected, after)) throw new Error('Kontrola po wczytaniu nie przeszła: liczności się nie zgadzają.');

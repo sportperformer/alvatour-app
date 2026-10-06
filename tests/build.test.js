@@ -114,3 +114,12 @@ describe('Android: udostępnianie do aplikacji i API telefonu', () => {
     }
   });
 });
+
+describe('debugowanie WebView', () => {
+  it('włączone tylko w wariancie DEV (testy na emulatorze), nigdy w produkcji', () => {
+    const m = read('android/app/src/main/java/pl/sportperformer/alvatour/MainActivity.java');
+    expect(m).toMatch(/if \("dev"\.equals\(BuildConfig\.FLAVOR\)\) \{\s*WebView\.setWebContentsDebuggingEnabled\(true\);/);
+    expect(m.match(/setWebContentsDebuggingEnabled/g)).toHaveLength(1);
+    expect(JSON.parse(read('capacitor.config.json')).android.webContentsDebuggingEnabled).toBeUndefined();
+  });
+});

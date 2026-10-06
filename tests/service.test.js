@@ -78,8 +78,9 @@ describe('start aplikacji', () => {
     const V2 = [...MIGRATIONS, { version: MIGRATIONS.length + 1, name: 'test', statements: ["ALTER TABLE countries ADD COLUMN color TEXT NOT NULL DEFAULT ''"] }];
     const r = await env.restart({ migrations: V2, appVersion: '1.0.1' }).init();
     expect(r.readOnly).toBe(null);
-    expect(r.notices.find((n) => n.type === 'migrated')).toMatchObject({ from: 1, to: 2 });
-    const pre = names(env.fs).find((n) => n.startsWith('pre-migration-v1-to-v2-'));
+    const N = MIGRATIONS.length;
+    expect(r.notices.find((n) => n.type === 'migrated')).toMatchObject({ from: N, to: N + 1 });
+    const pre = names(env.fs).find((n) => n.startsWith(`pre-migration-v${N}-to-v${N + 1}-`));
     expect(pre).toBeTruthy();
     const p = await parseBackup(env.fs.files.public.get(pre));
     expect(p.state).toEqual(normalizeState(sampleState()));
@@ -95,7 +96,7 @@ describe('start aplikacji', () => {
     const r = await svc.init();
     expect(r.readOnly).toBe('migration');
     expect(r.notices[0]).toMatchObject({ type: 'read-only', reason: 'migration' });
-    expect(r.notices[0].backup).toMatch(/^pre-migration-v1-to-v2-/);
+    expect(r.notices[0].backup).toMatch(new RegExp(`^pre-migration-v${MIGRATIONS.length}-to-v${MIGRATIONS.length + 1}-`));
     expect(r.state).toEqual(normalizeState(sampleState()));
     expect(await svc.persist({ countries: {} })).toBe(false);
     expect((await env.restart().init()).state).toEqual(normalizeState(sampleState()));
@@ -207,5 +208,30 @@ describe('import i eksport', () => {
     env.now.advance(8 * DAY);
     r = await env.restart().init();
     expect(r.notices.find((n) => n.type === 'export-reminder')).toBeUndefined(); // bez zmian od eksportu
+  });
+});
+
+describe('aktualizacja 1.0.0 -> 1.0.1 (schemat 1 -> 2: kolumny updated_at)', () => {
+  it('baza z 1.0.0: po aktualizacji te same dane, kopia przed migracją, nowe pole wypełniane przy zapisie', async () => {
+    const V1 = MIGRATIONS.filter((m) => m.version === 1);
+    const env = setup({ migrations: V1 });
+    await env.svc.init();
+    await env.svc.persist(sampleState());
+    expect((await env.db.all('PRAGMA table_info(places)')).map((c) => c.name)).not.toContain('updated_at');
+
+    env.now.advance(HOUR);
+    const r = await env.restart({ migrations: MIGRATIONS, appVersion: '1.0.1' }).init();
+    expect(r.readOnly).toBe(null);
+    expect(r.state).toEqual(normalizeState(sampleState()));
+    expect(names(env.fs).some((n) => n.startsWith('pre-migration-v1-to-v2-'))).toBe(true);
+    for (const t of ['countries', 'places']) expect((await env.db.all(`PRAGMA table_info(${t})`)).map((c) => c.name)).toContain('updated_at');
+
+    const s = normalizeState(sampleState());
+    s.places[0].note = 'po aktualizacji';
+    await env.svc.persist(s);
+    const row = (await env.db.all("SELECT note, updated_at FROM places WHERE id = 'p1'"))[0];
+    expect(row).toEqual({ note: 'po aktualizacji', updated_at: env.now().toISOString() });
+    expect((await env.db.all("SELECT updated_at FROM places WHERE id = 'p2'"))[0].updated_at).toBe(null); // nie zmieniane: bez daty
+    expect((await env.restart().init()).state.places[0].note).toBe('po aktualizacji');
   });
 });
