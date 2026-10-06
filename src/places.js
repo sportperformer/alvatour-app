@@ -17,19 +17,8 @@ const CATS = [
 const CAT = Object.fromEntries(CATS.map((c) => [c.id, c]));
 const catOf = (id) => CAT[id] || CAT.other;
 const catIcon = (id, size = 18) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true">${catOf(id).icon}</svg>`;
-const CAT_WORDS = [
-  ['food', /restaura|bistro|jedzen|kuchni|tapas|pizz|sushi|tawern|knajp|food|eat|grill|ramen|steak|seafood/i],
-  ['cafe', /kaw|cafe|café|coffee|cukierni|piekarn|bakery|lody|gelat|dessert|deser/i],
-  ['bar', /bar|pub|piw|wine|win[oa]|cocktail|drink|rooftop/i],
-  ['hotel', /hotel|nocleg|hostel|apartament|pensjonat|b&b|resort|stay/i],
-  ['museum', /muze|museum|galeri|gallery|wystaw/i],
-  ['view', /widok|punkt widokowy|viewpoint|miradouro|panoram|taras/i],
-  ['beach', /plaż|beach|praia|playa|zatok/i],
-  ['nature', /park|natur|las|góry|szlak|ogród|garden|jezior|wodospad|hike|trail|mountain/i],
-  ['shop', /sklep|zakup|market|targ|bazar|shop|mall/i],
-  ['sight', /zabyt|katedr|kości|zamek|pałac|most|plac|wieża|klasztor|ruin|castle|church|cathedral|palace|tower|bridge|square|monument|historic/i],
-];
-function guessCat(text) { for (const [id, re] of CAT_WORDS) if (re.test(text || '')) return id; return 'other'; }
+// parsery (Google Maps, AI, kategorie) są w src/native/parsers.js (testowane)
+const { guessCat, parseShared, looksLikeAI, parseAI } = AlvaParsers;
 function catFromOsm(cls, type) {
   const t = `${cls}:${type}`;
   if (/restaurant|fast_food|food_court/.test(t)) return 'food';
@@ -50,41 +39,9 @@ const placeById = (id) => state.places.find((p) => p.id === id);
 const placesIn = (cc) => state.places.filter((p) => p.cc === cc);
 function placeYear(p) { return p.date ? Number(p.date.slice(0, 4)) : null; }
 
-/* ================= Odczyt tekstu z Google Maps ================= */
-function parseShared(raw) {
-  const text = String(raw || '').trim();
-  const out = { name: '', addr: '', url: '', lat: null, lng: null };
-  if (!text) return out;
-  const urls = text.match(/https?:\/\/[^\s<>"]+/g) || [];
-  const gurl = urls.find((u) => /google\.[a-z.]+\/maps|maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google/.test(u)) || urls[0] || '';
-  out.url = gurl;
-  if (gurl) {
-    let m = gurl.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || gurl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || gurl.match(/[?&](?:q|query|ll|destination)=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i);
-    if (m) { out.lat = Number(m[1]); out.lng = Number(m[2]); }
-    const pm = gurl.match(/\/place\/([^/@?]+)/);
-    if (pm) { try { out.name = decodeURIComponent(pm[1].replace(/\+/g, ' ')); } catch (e) { out.name = pm[1].replace(/\+/g, ' '); } }
-    const qm = !out.name && gurl.match(/[?&](?:q|query)=([^&]+)/);
-    if (qm && !/^-?\d/.test(qm[1])) { try { out.name = decodeURIComponent(qm[1].replace(/\+/g, ' ')); } catch (e) { /* */ } }
-  }
-  const lines = text.replace(/https?:\/\/[^\s<>"]+/g, '\n').split(/\n+/).map((l) => l.trim()).filter((l) => l && !/^(google maps|mapy google)$/i.test(l));
-  if (lines.length) {
-    if (!out.name) out.name = lines[0].replace(/\s*[·|]\s*$/, '');
-    const rest = lines.slice(out.name === lines[0] ? 1 : 0).join(', ');
-    out.addr = rest;
-  }
-  return out;
-}
-
 /* ================= Geokodowanie (OpenStreetMap) ================= */
-async function fetchJSON(url, ms = 9000) {
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), ms);
-  try {
-    const r = await fetch(url, { signal: ctl.signal, headers: { Accept: 'application/json' } });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return await r.json();
-  } finally { clearTimeout(t); }
-}
+// Nominatim/Photon przez AlvaNative: nagłówek User-Agent, limit 1 zapytanie na sekundę, pamięć wyników
+const fetchJSON = (url) => AlvaNative.geoJSON(url);
 function ccFromPoint(lng, lat) {
   const p = [lng, lat];
   const cand = features.filter((f) => inBounds(f, lng, lat) && d3.geoContains(f, p)).sort((a, b) => a.area - b.area);
@@ -327,6 +284,13 @@ async function runPlaceSearch() {
   addCtx.parsed = parsed;
   list.innerHTML = ''; $('plForm').hidden = true;
   msg.innerHTML = '<span class="spinner sm"></span> Szukam…';
+  const alive = () => $('plMsg') === msg; // okno mogło zostać zamknięte w trakcie szukania
+  if (parsed.lat == null && AlvaParsers.isShortMapsLink(parsed.url)) {
+    // krótki link z Google Maps (maps.app.goo.gl): rozwiń go, w pełnym adresie są współrzędne
+    const full = await AlvaNative.expandMapsLink(parsed.url);
+    const c = full && AlvaParsers.coordsFromUrl(full);
+    if (c) { parsed.lat = c.lat; parsed.lng = c.lng; if (!parsed.name) parsed.name = parseShared(full).name; }
+  }
   let cands = [];
   try {
     if (parsed.lat != null) {
@@ -335,14 +299,16 @@ async function runPlaceSearch() {
     } else {
       const tries = [[parsed.name, parsed.addr].filter(Boolean).join(', '), parsed.addr, parsed.name].filter((x, i, a) => x && a.indexOf(x) === i);
       if (!tries.length && parsed.url) { msg.innerHTML = 'Sam link z Google Maps nie zawiera nazwy miejsca. Użyj <b>Udostępnij</b> zamiast „Kopiuj link” albo dopisz nazwę lokalu.'; return; }
-      for (const t of tries) { cands = await geoSearch(t); if (cands.length) break; await sleep(400); }
+      for (const t of tries) { cands = await geoSearch(t); if (cands.length) break; }
       if (parsed.name) cands = cands.map((c) => ({ ...c, name: c.name && normalizeText(parsed.name).includes(normalizeText(c.name)) ? parsed.name : (c.name || parsed.name) }));
     }
   } catch (e) {
-    msg.innerHTML = 'Nie mogę połączyć się z wyszukiwarką adresów. Sprawdź internet. (W podglądzie na claude.ai wyszukiwarka jest zablokowana, zadziała na GitHub Pages.)';
+    if (!alive()) return;
+    msg.innerHTML = 'Nie mogę połączyć się z wyszukiwarką adresów. Sprawdź internet albo zapisz miejsce z przybliżoną lokalizacją.';
     showManualForm(parsed);
     return;
   }
+  if (!alive()) return;
   if (!cands.length) { msg.textContent = 'Nic nie znalazłem. Spróbuj dopisać miasto albo zapisz z przybliżoną lokalizacją.'; showManualForm(parsed); return; }
   addCtx.candidates = cands;
   msg.textContent = cands.length > 1 ? 'Wybierz właściwe miejsce:' : 'Znalazłem:';
@@ -409,7 +375,6 @@ function showPlaceForm(d) {
 }
 
 /* ================= Rekomendacje od AI ================= */
-function looksLikeAI(t) { return /"places"\s*:|"alvatour"|ALVATOUR/i.test(t || '') || (/\[\s*\{[\s\S]*"name"/.test(t || '')); }
 function aiPrompt(dest, likes) {
   return `Jadę: ${dest || '[miasto lub kraj, liczba dni]'}.${likes ? ` Interesuje mnie: ${likes}.` : ''}
 Poleć mi najlepsze miejsca do odwiedzenia: jedzenie, kawiarnie, zabytki, widoki i lokalne perełki. Podawaj tylko prawdziwe miejsca, które da się znaleźć w Google Maps.
@@ -420,23 +385,6 @@ Na samym końcu odpowiedzi dodaj blok kodu JSON dokładnie w tym formacie (bez k
   {"name": "Dokładna nazwa miejsca", "city": "Miasto", "country": "Kraj po polsku", "category": "restauracja | kawiarnia | bar | nocleg | zabytek | muzeum | widok | natura | plaża | zakupy | inne", "note": "Dlaczego warto, jedno zdanie"}
 ]}
 \`\`\``;
-}
-function parseAI(text) {
-  const t = String(text || '');
-  const tryParse = (s) => { try { return JSON.parse(s); } catch (e) { return null; } };
-  let data = null;
-  const blocks = [...t.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)].map((m) => m[1]);
-  for (const b of blocks.reverse()) { data = tryParse(b.trim()); if (data) break; }
-  if (!data) { const i = t.indexOf('{"alvatour"'); if (i >= 0) data = tryParse(t.slice(i, t.lastIndexOf('}') + 1)); }
-  if (!data) { const i = t.indexOf('['), j = t.lastIndexOf(']'); if (i >= 0 && j > i) data = tryParse(t.slice(i, j + 1)); }
-  let arr = Array.isArray(data) ? data : data && Array.isArray(data.places) ? data.places : null;
-  if (!arr) { // awaryjnie: linie "Nazwa | Miasto | Kategoria | Opis"
-    arr = t.split('\n').filter((l) => l.split('|').length >= 2).map((l) => { const [name, city, category, note] = l.split('|').map((x) => x.replace(/^[\s\-*\d.]+/, '').trim()); return { name, city, category, note }; });
-  }
-  return arr.filter((x) => x && x.name).map((x) => ({
-    name: String(x.name).trim(), city: String(x.city || '').trim(), country: String(x.country || '').trim(),
-    cat: guessCat(String(x.category || '') + ' ' + x.name), note: String(x.note || x.description || '').trim(),
-  }));
 }
 function ccFromName(name) {
   const n = normalizeText(name);
@@ -470,12 +418,11 @@ function openAIImport(seed = '') {
     card.querySelector('#aiCopy').addEventListener('click', () => {
       const t = prompt();
       const ok = () => { card.querySelector('#aiCopyMsg').textContent = 'Skopiowano. Wklej w Claude albo Gemini.'; };
-      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok, () => { $('aiText').value = t; $('aiText').select(); card.querySelector('#aiCopyMsg').textContent = 'Zaznaczyłem prompt w polu poniżej, skopiuj go ręcznie.'; });
+      AlvaNative.copy(t).then(ok, () => { $('aiText').value = t; $('aiText').select(); card.querySelector('#aiCopyMsg').textContent = 'Zaznaczyłem prompt w polu poniżej, skopiuj go ręcznie.'; });
     });
     card.querySelector('#aiShare').addEventListener('click', async () => {
       const t = prompt();
-      if (navigator.share) { try { await navigator.share({ text: t }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
-      card.querySelector('#aiCopy').click();
+      try { await AlvaNative.shareText(t, 'Plan podróży'); } catch (e) { card.querySelector('#aiCopy').click(); }
     });
     card.querySelector('#aiParse').addEventListener('click', () => runAIParse(card));
     if (pre) runAIParse(card);
@@ -515,9 +462,8 @@ async function runAIParse(card) {
       else it.state = 'miss';
     }
     draw(); updBtn();
-    if (!offline) await sleep(1100); // limit darmowej wyszukiwarki: 1 zapytanie na sekundę
   }
-  msg.textContent = offline ? 'Wyszukiwarka adresów jest niedostępna (w podglądzie to normalne). Miejsca dostaną przybliżoną lokalizację w kraju.' : 'Gotowe. Odznacz to, czego nie chcesz.';
+  msg.textContent = offline ? 'Wyszukiwarka adresów jest niedostępna (brak internetu?). Miejsca dostaną przybliżoną lokalizację w kraju.' : 'Gotowe. Odznacz to, czego nie chcesz.';
   saveBtn.onclick = () => {
     const chosen = items.filter((x) => x.on && (x.state === 'ok' || x.state === 'approx'));
     for (const it of chosen) {
@@ -545,14 +491,11 @@ BADGES.push(
 );
 
 /* ================= Udostępnianie do aplikacji (Android) ================= */
-function handleIncomingShare() {
-  const qs = new URLSearchParams(location.search);
-  const parts = ['title', 'text', 'url'].map((k) => qs.get(k)).filter(Boolean);
-  if (!parts.length) return false;
-  try { history.replaceState(null, '', location.pathname); } catch (e) { /* */ }
-  const combined = [...new Set(parts)].join('\n');
+// Google Maps / Claude / Gemini: Udostępnij -> AlvaTour. Tekst przychodzi z natywnej wtyczki (AlvaNative.listenForShares).
+function handleSharedText(text) {
+  if (!dataReady) { toast('Aplikacja jest w trybie bezpiecznym, więc nie mogę teraz dodać miejsca.'); return; }
   if (!state.settings.onboarded) { state.settings.onboarded = true; saveNow(); }
-  if (looksLikeAI(combined)) openAIImport(combined); else openPlaceAdd({ shared: combined });
-  return true;
+  showView('globe');
+  if (looksLikeAI(text)) openAIImport(text); else openPlaceAdd({ shared: text });
 }
 $('btnAddPlace').addEventListener('click', () => openPlaceAdd());

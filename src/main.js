@@ -78,6 +78,7 @@ new MutationObserver(onTheme).observe(document.documentElement, { attributes: tr
 
 async function start() {
   let boot;
+  await AlvaNative.init(APP_VERSION);
   try {
     boot = await AlvaData.init({ appVersion: APP_VERSION });
   } catch (e) {
@@ -109,8 +110,11 @@ async function start() {
   if (home) { const f = byId.get(home); rotation = [-f.focus[0], -clamp(f.focus[1] - 10, -60, 60), 0]; }
   render();
   // komunikaty warstwy danych (tryb awaryjny, propozycja przywrócenia kopii, przypomnienie o eksporcie)
-  if (handleDataNotices(boot.notices)) return;
-  if (handleIncomingShare()) return;
+  const noticeShown = handleDataNotices(boot.notices);
+  // Udostępnij -> AlvaTour: tekst z zimnego startu przychodzi od razu, kolejne gdy aplikacja jest otwarta
+  let gotShare = false;
+  await AlvaNative.listenForShares((text) => { gotShare = true; handleSharedText(text); });
+  if (noticeShown || gotShare) return;
   if (!state.settings.onboarded) showOnboarding();
   else if (!state.settings.hintSeen && !visitedIds().length) $('hint').hidden = false;
 }

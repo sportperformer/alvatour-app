@@ -295,28 +295,18 @@ async function makeShareCard() {
   g.textAlign = 'left';
 
   const url = cv.toDataURL('image/png');
-  const canShare = !!(navigator.canShare && window.File);
   openModal(`
     <div class="share">
       <div class="share-head"><h2>Karta podróżnika</h2><button type="button" class="btn-ghost icon-only" id="shareClose" aria-label="Zamknij"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
       <img src="${url}" alt="Karta podróżnika AlvaTour" class="share-img">
       <div class="btn-row">
-        ${canShare ? '<button type="button" class="btn" id="shareGo">Udostępnij</button>' : ''}
-        ${inFrame ? '' : '<button type="button" class="btn btn-soft" id="shareDl">Pobierz PNG</button>'}
+        <button type="button" class="btn" id="shareGo">Udostępnij</button>
       </div>
-      <p class="muted small">Na telefonie możesz też przytrzymać obrazek, żeby go zapisać.</p>
+      <p class="muted small">W oknie „Udostępnij” możesz wysłać kartę znajomym albo zapisać ją na Dysku Google.</p>
     </div>`, (card) => {
     card.querySelector('#shareClose').addEventListener('click', closeModal);
-    const dl = card.querySelector('#shareDl');
-    if (dl) dl.addEventListener('click', () => { const a = document.createElement('a'); a.href = url; a.download = 'alvatour-karta.png'; document.body.appendChild(a); a.click(); a.remove(); });
-    const sh = card.querySelector('#shareGo');
-    if (sh) sh.addEventListener('click', async () => {
-      try {
-        const blob = await (await fetch(url)).blob();
-        const file = new File([blob], 'alvatour-karta.png', { type: 'image/png' });
-        if (navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: 'AlvaTour', text: `Byłem już w ${countries(n)}!` });
-        else toast('To urządzenie nie pozwala udostępnić obrazka. Przytrzymaj go, żeby zapisać.');
-      } catch (e) { /* anulowano */ }
+    card.querySelector('#shareGo').addEventListener('click', async () => {
+      try { await AlvaNative.shareImage(url, 'alvatour-karta.png', `Byłem już w ${countries(n)}!`); } catch (e) { toast('Nie udało się udostępnić obrazka.'); }
     });
   });
   sfx.pop();

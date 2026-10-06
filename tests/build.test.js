@@ -82,9 +82,12 @@ describe('dane: zasady nienaruszalne', () => {
       + readdirSync(join(root, 'src/data')).map((f) => read('src/data/' + f)).join('\n');
     expect(all).not.toMatch(/caches\.delete|localStorage\.clear|removeItem\(|indexedDB\.deleteDatabase|deleteDatabase\(/);
   });
-  it('www zawiera warstwę danych', () => {
-    expect(existsSync(join(root, 'www/data.js'))).toBe(true);
-    expect(read('www/index.html').indexOf('data.js')).toBeLessThan(read('www/index.html').indexOf('core.js'));
+  it('www zawiera warstwę danych i funkcje telefonu, ładowane przed kodem aplikacji', () => {
+    const html = read('www/index.html');
+    for (const f of ['native.js', 'data.js']) {
+      expect(existsSync(join(root, 'www', f)), f).toBe(true);
+      expect(html.indexOf(f), f).toBeLessThan(html.indexOf('core.js'));
+    }
   });
   it('kopia Google (Auto Backup) jest włączona i obejmuje bazę', () => {
     const m = read('android/app/src/main/AndroidManifest.xml');
@@ -94,5 +97,20 @@ describe('dane: zasady nienaruszalne', () => {
     const rules = read('android/app/src/main/res/xml/data_extraction_rules.xml');
     expect(rules.match(/domain="database"/g)).toHaveLength(2);
     expect(read('android/app/src/main/res/xml/backup_rules.xml')).toMatch(/domain="database"/);
+  });
+});
+
+describe('Android: udostępnianie do aplikacji i API telefonu', () => {
+  it('AlvaTour jest na liście "Udostępnij" dla tekstu (Google Maps, Claude, Gemini)', () => {
+    const m = read('android/app/src/main/AndroidManifest.xml');
+    expect(m).toMatch(/<action android:name="android.intent.action.SEND" \/>[\s\S]*?<data android:mimeType="text\/plain" \/>/);
+    expect(m).toMatch(/android:launchMode="singleTask"/);
+    expect(read('android/app/src/main/java/pl/sportperformer/alvatour/MainActivity.java')).toMatch(/registerPlugin\(ShareTargetPlugin\.class\)/);
+  });
+  it('kod aplikacji nie używa API przeglądarki, które w WebView nie działają', () => {
+    for (const f of ['core.js', 'globe.js', 'panel.js', 'views.js', 'fun.js', 'places.js', 'main.js']) {
+      const t = read('src/' + f);
+      expect(t, f).not.toMatch(/navigator\.(share|canShare|clipboard|vibrate)|\.download = |fetch\((?!DATA_URL|META_URL)/); // lokalne pliki z paczki APK są OK
+    }
   });
 });

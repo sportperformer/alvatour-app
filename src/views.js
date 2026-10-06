@@ -406,8 +406,7 @@ $('btnExport').addEventListener('click', () => exportAll(true));
 $('btnCopy').addEventListener('click', async () => {
   const { text: txt } = await AlvaData.exportAll();
   const fallback = () => { $('pasteBox').hidden = false; $('pasteArea').value = txt; $('pasteArea').select(); menuMsg('Zaznaczyłem dane w polu poniżej, skopiuj je ręcznie.'); };
-  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(() => menuMsg('Skopiowano dane do schowka.'), fallback);
-  else fallback();
+  AlvaNative.copy(txt).then(() => menuMsg('Skopiowano dane do schowka.'), fallback);
 });
 
 /** Po wczytaniu nowych danych: odśwież cały widok. */
@@ -545,6 +544,27 @@ function handleDataNotices(notices) {
 document.addEventListener('click', (e) => { if (e.target.closest('[data-export-now]')) exportAll(false); });
 
 $('appVersion').textContent = APP_VERSION;
+
+/* ---------- Sprawdzanie aktualizacji (GitHub Releases) ---------- */
+$('btnUpdate').addEventListener('click', async () => {
+  const btn = $('btnUpdate');
+  btn.disabled = true; btn.textContent = 'Sprawdzam…';
+  try {
+    const { update, current } = await AlvaNative.checkUpdate();
+    if (!update) { menuMsg(`Masz najnowszą wersję (${current}).`); return; }
+    const notes = update.notes.split('\n').filter((l) => /^\s*[-*] /.test(l)).slice(0, 8).map((l) => `<li>${esc(l.replace(/^\s*[-*] /, '').replace(/\*\*/g, ''))}</li>`).join('');
+    openModal(`<div class="dlg"><h2>Jest nowa wersja ${esc(update.version)}</h2>
+      <p class="muted">Masz ${esc(current)}${update.prerelease ? '. To wersja testowa.' : '.'}</p>
+      ${notes ? `<ul class="upd-notes">${notes}</ul>` : ''}
+      <p>Kliknij „Pobierz”, a po pobraniu otwórz plik i wybierz <b>Aktualizuj</b>. Twoje dane zostaną (i tak zrobię kopię przed aktualizacją danych).</p>
+      <div class="btn-row"><button type="button" class="btn" data-ok>Pobierz</button><button type="button" class="btn btn-soft" data-x>Później</button></div></div>`, (card) => {
+      card.querySelector('[data-x]').addEventListener('click', closeModal);
+      card.querySelector('[data-ok]').addEventListener('click', async () => { await AlvaData.backupNow().catch(() => {}); AlvaNative.openUrl(update.url); closeModal(); });
+    });
+  } catch (e) {
+    console.error(e); menuMsg('Nie udało się sprawdzić aktualizacji. Sprawdź internet.');
+  } finally { btn.disabled = false; btn.textContent = 'Sprawdź aktualizację'; }
+});
 
 /* ================= Wyszukiwarka ================= */
 const searchInput = $('search'), results = $('searchResults');

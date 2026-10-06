@@ -173,7 +173,7 @@ const sfx = {
   fanfare() { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.09, 0.25, 'triangle', 0.16)); },
   pop() { tone(900, 0, 0.06, 'sine', 0.12); },
 };
-function buzz(pattern = 20) { if (state.settings.sound && navigator.vibrate) try { navigator.vibrate(pattern); } catch (e) { /* */ } }
+function buzz(pattern = 20) { if (state.settings.sound) AlvaNative.vibrate(pattern); }
 
 /* ================= Powiadomienia ================= */
 function toast(html, opts = {}) {

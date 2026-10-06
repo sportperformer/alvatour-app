@@ -17,3 +17,9 @@ Każda wersja ma tu sekcję `## <wersja>`. Jej treść trafia do opisu wydania w
 - Gdy aplikacja jest pusta, a w telefonie jest kopia, AlvaTour zapyta, czy ją przywrócić
 - Kopia Google (Auto Backup) obejmuje bazę danych
 - Tryb bezpieczny: jeśli aktualizacja formatu danych by się nie udała, dane zostają nietknięte, a aplikacja nie zapisuje zmian
+- **Udostępnij → AlvaTour** z Google Maps, Claude, Gemini i ChatGPT, także gdy AlvaTour była zamknięta
+- Krótkie linki z Google Maps (maps.app.goo.gl) są rozwijane do dokładnych współrzędnych
+- Prompt dla AI i karta podróżnika przez systemowe „Udostępnij”, kopiowanie przez schowek telefonu, wibracje przez silniczek telefonu
+- Wyszukiwarka adresów: nagłówek AlvaTour, najwyżej 1 zapytanie na sekundę, zapamiętywanie wyników
+- **Sprawdź aktualizację** w ustawieniach (GitHub Releases); wersja DEV widzi też wersje testowe
+- Poprawki: nazwa miejsca z Google Maps nie powtarza się w adresie; zamknięcie okna w trakcie szukania nie powoduje błędu

@@ -12,17 +12,20 @@ const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const version = process.env.ALVATOUR_VERSION_NAME || pkg.version;
 
 rmSync(out, { recursive: true, force: true });
-// src/data/ to moduły ES: trafiają do www/ jako jeden plik data.js (window.AlvaData)
-cpSync(src, out, { recursive: true, filter: (p) => !p.startsWith(join(src, 'data') + sep) && p !== join(src, 'data') });
-await build({
-  entryPoints: [join(src, 'data/main.js')],
-  bundle: true,
-  format: 'iife',
-  target: ['chrome100'],
-  outfile: join(out, 'data.js'),
-  legalComments: 'none',
-  logLevel: 'warning',
-});
+// src/data/ i src/native/ to moduły ES: trafiają do www/ jako data.js (window.AlvaData) i native.js (window.AlvaNative)
+const modules = ['data', 'native'];
+cpSync(src, out, { recursive: true, filter: (p) => !modules.some((m) => p === join(src, m) || p.startsWith(join(src, m) + sep)) });
+for (const m of modules) {
+  await build({
+    entryPoints: [join(src, m, 'main.js')],
+    bundle: true,
+    format: 'iife',
+    target: ['chrome100'],
+    outfile: join(out, m + '.js'),
+    legalComments: 'none',
+    logLevel: 'warning',
+  });
+}
 
 const corePath = join(out, 'core.js');
 const core = readFileSync(corePath, 'utf8');
@@ -30,7 +33,7 @@ const re = /const APP_VERSION = '[^']*';/;
 if (!re.test(core)) throw new Error('Nie znaleziono APP_VERSION w core.js');
 writeFileSync(corePath, core.replace(re, `const APP_VERSION = '${version}';`));
 
-for (const f of ['index.html', 'data.js', 'countries.json', 'meta.json', 'fonts/fonts.css']) {
+for (const f of ['index.html', 'data.js', 'native.js', 'countries.json', 'meta.json', 'fonts/fonts.css']) {
   if (!existsSync(join(out, f))) throw new Error('Brak pliku w www: ' + f);
 }
 console.log(`www/ gotowe (wersja ${version})`);

@@ -473,6 +473,7 @@ h2, h3 { text-wrap: balance; }
 .backup-row { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: none; color: inherit; text-align: left; font: inherit; }
 .backup-go { color: var(--accent); font-weight: 600; font-size: 14px; }
 .toast-warn { border: 1.5px solid var(--danger); }
+.upd-notes { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 14px; }
 .toast [data-export-now] { pointer-events: auto; text-decoration: underline; }
 .share-head h2 { margin: 0; font: 800 22px/1.1 var(--font-display); }
 .share-img { width: 100%; max-width: 100%; border-radius: 12px; box-shadow: var(--shadow); }
