@@ -151,6 +151,21 @@ const warm = await page.evaluate(() => (document.getElementById('aiText') || {})
 check(warm.includes('Livraria Lello'), 'odpowiedź AI udostępniona do otwartej aplikacji otwiera "Plan od AI"', warm.slice(0, 80));
 await page.evaluate(() => closeModal());
 
+// 5b. aktualizacja w aplikacji: pobranie z GitHuba + kontrola (ta sama aplikacja, ten sam klucz)
+const devUrl = process.env.PREV_DEV_URL || '';
+const prodUrl = process.env.PREV_PROD_URL || '';
+const tryDownload = (url) => page.evaluate(async (u) => {
+  try { return await AlvaNative.downloadUpdate({ url: u, size: 0, sha256: '' }); } catch (e) { return { error: String((e && e.message) || e) }; }
+}, url);
+if (devUrl) {
+  const r = await tryDownload(devUrl);
+  check(!r.error && r.packageName === PKG, 'aktualizacja w aplikacji: pobranie APK DEV z GitHuba i kontrola podpisu', JSON.stringify(r));
+} else console.log('(brak poprzedniej wersji DEV do testu pobierania)');
+if (prodUrl) {
+  const r = await tryDownload(prodUrl);
+  check(r.error && /inna aplikacja/.test(r.error), 'aktualizacja w aplikacji: DEV odrzuca plik wersji produkcyjnej', JSON.stringify(r));
+}
+
 // 6. brak awarii
 const fatal = sh('logcat -d -b crash 2>/dev/null || true') + sh(`logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime: Process: ${PKG}" || true`);
 check(!/FATAL EXCEPTION/.test(fatal), 'brak awarii w logach', fatal.slice(0, 300));

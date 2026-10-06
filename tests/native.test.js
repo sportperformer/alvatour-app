@@ -44,14 +44,14 @@ describe('wersje i aktualizacje', () => {
     expect(compareVersions('1.10.0', '1.9.9')).toBe(1);
     expect(compareVersions('v1.2.0', '1.2.0')).toBe(0);
   });
-  const rel = (tag, pre, names) => ({ tag_name: tag, prerelease: pre, draft: false, html_url: 'https://github.com/x/' + tag, body: '- zmiana', assets: names.map((n) => ({ name: n, browser_download_url: 'https://dl/' + n })) });
+  const rel = (tag, pre, names) => ({ tag_name: tag, prerelease: pre, draft: false, html_url: 'https://github.com/x/' + tag, body: '- zmiana', assets: names.map((n) => ({ name: n, browser_download_url: 'https://dl/' + n, size: 12750000, digest: 'sha256:' + 'ab'.repeat(32) })) });
   const releases = [
     rel('v1.1.0-test.20', true, ['AlvaTour-1.1.0-test.20.apk', 'AlvaTour-DEV-1.1.0-test.20.apk']),
     rel('v1.0.1', false, ['AlvaTour-1.0.1.apk', 'AlvaTour-DEV-1.0.1.apk']),
     rel('v1.0.0', false, ['AlvaTour-1.0.0.apk', 'AlvaTour-DEV-1.0.0.apk']),
   ];
   it('wersja produkcyjna widzi tylko pełne wydania i bierze swój plik', () => {
-    expect(pickUpdate(releases, { current: '1.0.0', dev: false })).toMatchObject({ version: '1.0.1', url: 'https://dl/AlvaTour-1.0.1.apk' });
+    expect(pickUpdate(releases, { current: '1.0.0', dev: false })).toMatchObject({ version: '1.0.1', url: 'https://dl/AlvaTour-1.0.1.apk', size: 12750000, sha256: 'ab'.repeat(32) });
     expect(pickUpdate(releases, { current: '1.0.1', dev: false })).toBe(null);
   });
   it('DEV widzi też wersje testowe i bierze plik DEV', () => {

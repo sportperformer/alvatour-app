@@ -6,6 +6,7 @@ Każda wersja ma tu sekcję `## <wersja>`. Jej treść trafia do opisu wydania w
 
 - Aktualizacja formatu danych (schemat 2): data ostatniej zmiany każdego kraju i miejsca. Przygotowanie pod przyszłe funkcje (np. „ostatnio edytowane”). Twoje dotychczasowe dane zostają bez zmian, a przed aktualizacją powstaje kopia `pre-migration-v1-to-v2-….json`
 - Automatyczny test aktualizacji na emulatorze: poprzednia wersja z danymi → nowa wersja → te same dane
+- **Aktualizacja w aplikacji bez przeglądarki**: „Sprawdź aktualizację” → „Pobierz i zainstaluj” pobiera plik wewnątrz AlvaTour (z paskiem postępu), sprawdza go (kompletność, suma kontrolna, ta sama aplikacja, Twój klucz podpisu) i otwiera okno „Aktualizuj”. Omija błąd Chrome, w którym pobieranie APK z GitHuba zawiesza się na 100%
 - Poprawka: tymczasowa pozycja pinezki na ekranie nie jest już zapisywana w bazie i kopiach (mniej zbędnych zapisów przy obracaniu globu)
 
 ## 1.0.0

@@ -48,6 +48,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Aktualizacja z poziomu aplikacji (pobrany APK -> systemowe okno "Aktualizuj"). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Tylko stare Androidy (do 10): zapis kopii w folderze Documents. Od Androida 11 zgoda nie jest potrzebna. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />

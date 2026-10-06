@@ -556,10 +556,44 @@ $('btnUpdate').addEventListener('click', async () => {
     openModal(`<div class="dlg"><h2>Jest nowa wersja ${esc(update.version)}</h2>
       <p class="muted">Masz ${esc(current)}${update.prerelease ? '. To wersja testowa.' : '.'}</p>
       ${notes ? `<ul class="upd-notes">${notes}</ul>` : ''}
-      <p>Kliknij „Pobierz”, a po pobraniu otwórz plik i wybierz <b>Aktualizuj</b>. Twoje dane zostaną (i tak zrobię kopię przed aktualizacją danych).</p>
-      <div class="btn-row"><button type="button" class="btn" data-ok>Pobierz</button><button type="button" class="btn btn-soft" data-x>Później</button></div></div>`, (card) => {
+      <p>Kliknij „Pobierz i zainstaluj”. AlvaTour pobierze plik, sprawdzi go (kompletność, Twój klucz podpisu) i otworzy okno <b>Aktualizuj</b>. Twoje dane zostają, a przed aktualizacją zrobię kopię.</p>
+      <p class="muted small" id="updMsg" role="status"></p>
+      <div class="btn-row"><button type="button" class="btn" data-ok>Pobierz i zainstaluj</button><button type="button" class="btn btn-soft" data-x>Później</button></div></div>`, (card) => {
+      const msg = card.querySelector('#updMsg'), ok = card.querySelector('[data-ok]');
+      let downloaded = false;
       card.querySelector('[data-x]').addEventListener('click', closeModal);
-      card.querySelector('[data-ok]').addEventListener('click', async () => { await AlvaData.backupNow().catch(() => {}); AlvaNative.openUrl(update.url); closeModal(); });
+      const install = async () => {
+        const r = await AlvaNative.installUpdate();
+        if (r.needsPermission) {
+          msg.innerHTML = 'Android pyta o zgodę: włącz <b>Zezwalaj z tego źródła</b> dla AlvaTour, wróć tutaj strzałką i kliknij <b>Zainstaluj</b>.';
+          ok.disabled = false; ok.textContent = 'Zainstaluj';
+        } else {
+          msg.textContent = 'Otwieram instalator. Wybierz „Aktualizuj”.';
+          ok.disabled = false; ok.textContent = 'Zainstaluj';
+        }
+      };
+      ok.addEventListener('click', async () => {
+        ok.disabled = true;
+        try {
+          if (!downloaded) {
+            msg.textContent = 'Robię kopię zapasową…';
+            await AlvaData.backupNow().catch(() => {});
+            msg.textContent = 'Pobieram…';
+            const r = await AlvaNative.downloadUpdate(update, (d, t) => {
+              msg.textContent = t > 0 ? `Pobieram… ${Math.min(100, Math.round((d / t) * 100))}% (${(d / 1e6).toFixed(1)} z ${(t / 1e6).toFixed(1)} MB)` : `Pobieram… ${(d / 1e6).toFixed(1)} MB`;
+            });
+            downloaded = true;
+            msg.textContent = `Pobrano i sprawdzono wersję ${r.versionName || update.version}.`;
+          }
+          await install();
+        } catch (e) {
+          console.error(e);
+          msg.innerHTML = `Nie udało się: ${esc((e && e.message) || e)}<br>Możesz też pobrać plik ręcznie: <button type="button" class="link" data-manual>otwórz w przeglądarce</button>.`;
+          const m = msg.querySelector('[data-manual]');
+          if (m) m.addEventListener('click', () => AlvaNative.openUrl(update.page));
+          ok.disabled = false; ok.textContent = downloaded ? 'Zainstaluj' : 'Spróbuj ponownie';
+        }
+      });
     });
   } catch (e) {
     console.error(e); menuMsg('Nie udało się sprawdzić aktualizacji. Sprawdź internet.');

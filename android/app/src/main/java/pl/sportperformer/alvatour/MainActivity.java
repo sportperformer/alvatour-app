@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // własne wtyczki AlvaTour (rejestrowane przed startem mostu Capacitor)
         registerPlugin(ShareTargetPlugin.class);
+        registerPlugin(AppUpdaterPlugin.class);
         super.onCreate(savedInstanceState);
         // Tylko AlvaTour DEV: automatyczne testy na emulatorze (GitHub Actions) sterują aplikacją przez WebView.
         // Wersja produkcyjna ma to wyłączone.
