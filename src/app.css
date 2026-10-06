@@ -247,7 +247,17 @@ h2, h3 { text-wrap: balance; }
 .hearts button:hover { transform: scale(1.15); }
 
 .visits { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.visit-row { display: grid; grid-template-columns: 88px 1fr 36px; gap: 8px; align-items: start; }
+.visit-row { display: grid; grid-template-columns: 1fr 36px; gap: 6px 8px; align-items: start; }
+.visit-row .dpick { grid-column: 1; }
+.visit-row .note { grid-column: 1; }
+.visit-row .icon-btn { grid-column: 2; grid-row: 1; }
+/* Wybór daty: dzień i miesiąc opcjonalne, rok wymagany */
+.dpick { display: grid; grid-template-columns: 80px minmax(0, 1fr) 84px; gap: 6px; width: 100%; }
+.dpick select, .dpick input { width: 100%; min-width: 0; padding: 9px 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); color: var(--fg); font: inherit; }
+.dpick .dp-y { font-variant-numeric: tabular-nums; font-weight: 600; }
+.dpick select:disabled { opacity: 0.5; }
+.field-label .muted { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.dpick select:focus, .dpick input:focus { outline: none; border-color: var(--accent); background: var(--panel); }
 .visit-row input { padding: 8px 10px; width: 100%; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); min-width: 0; }
 .visit-row .year { font-variant-numeric: tabular-nums; font-weight: 600; }
 .icon-btn { width: 36px; height: 38px; border: 0; border-radius: 8px; background: none; color: var(--muted); display: grid; place-items: center; }

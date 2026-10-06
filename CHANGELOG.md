@@ -2,6 +2,12 @@
 
 Każda wersja ma tu sekcję `## <wersja>`. Jej treść trafia do opisu wydania w GitHub Releases.
 
+## 1.1.0
+
+- **Daty z dniem i miesiącem (opcjonalnie)**: w kraju (pierwszy raz i kolejne wizyty) oraz w miejscach możesz wybrać pełną datę (np. 15.04.2024), sam miesiąc i rok albo tylko rok, gdy nie pamiętasz dokładnie
+- **Paszport i lista „Odwiedzone”**: kraje z tego samego roku ułożone od najdawniej odwiedzonego (dokładna data przed samym rokiem); na liście widać dokładną datę
+- Poprawka: konfetti nie zostaje już „zamrożone” na ekranie (np. po wyjściu z aplikacji i powrocie)
+
 ## 1.0.1
 
 - Aktualizacja formatu danych (schemat 2): data ostatniej zmiany każdego kraju i miejsca. Przygotowanie pod przyszłe funkcje (np. „ostatnio edytowane”). Twoje dotychczasowe dane zostają bez zmian, a przed aktualizacją powstaje kopia `pre-migration-v1-to-v2-….json`

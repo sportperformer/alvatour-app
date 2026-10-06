@@ -116,7 +116,7 @@ let page = await launch();
 const r1 = await page.evaluate(async () => {
   state.settings.onboarded = true;
   state.settings.name = 'Emulator';
-  state.countries.PT = { visited: true, wish: false, firstYear: 2019, visits: [{ year: 2022, note: 'Porto' }], notes: 'test emulatora', rating: 5, plannedDate: '', addedAt: new Date().toISOString() };
+  state.countries.PT = { visited: true, wish: false, firstYear: 2019, firstDate: '2019-08-03', visits: [{ year: 2022, note: 'Porto', date: '2022-05' }], notes: 'test emulatora', rating: 5, plannedDate: '', addedAt: new Date().toISOString() };
   state.places.push({ id: 'pemu1', name: 'Café Majestic', addr: 'Porto', city: 'Porto', cc: 'PT', lat: 41.14706, lng: -8.60654, approx: false, cat: 'cafe', status: 'visited', date: '2022-05-03', rating: 5, note: 'x', url: '', src: 'test', addedAt: new Date().toISOString() });
   saveNow();
   await AlvaData.flush();
@@ -134,6 +134,7 @@ check(files.includes(r1.backup.name), 'plik kopii widoczny w Documents (adb)', f
 page = await launch();
 const r2 = await page.evaluate(() => ({ pt: state.countries.PT, places: state.places.length, name: state.settings.name }));
 check(r2.pt && r2.pt.notes === 'test emulatora' && r2.pt.visits.length === 1 && r2.places === 1 && r2.name === 'Emulator', 'dane po ponownym uruchomieniu', JSON.stringify(r2));
+check(r2.pt && r2.pt.firstDate === '2019-08-03' && r2.pt.visits[0].date === '2022-05', 'daty z dniem/miesiącem po ponownym uruchomieniu', JSON.stringify(r2.pt && { firstDate: r2.pt.firstDate, visits: r2.pt.visits }));
 
 // 4. Udostępnij -> AlvaTour (zimny start)
 const shareCold = "'Majestic Cafe Porto https://maps.app.goo.gl/zimnystart'";

@@ -166,19 +166,17 @@ function renderSheet() {
         <p>Usunąć oznaczenie i wszystkie notatki dla tego kraju?</p>
         <div class="btn-row"><button type="button" class="btn btn-danger" id="unmarkYes">Tak, usuń</button><button type="button" class="btn btn-soft" id="unmarkNo">Anuluj</button></div>
       </div>
-      <div class="two-col">
-        <div class="field">
-          <label for="firstYear">Pierwszy raz</label>
-          <input id="firstYear" class="year-input" type="number" inputmode="numeric" min="${MIN_YEAR}" max="${THIS_YEAR}" placeholder="rok" value="${c.firstYear ?? ''}">
-        </div>
-        <div class="field">
-          <span class="field-label">Ocena</span>
-          <div class="hearts" id="hearts" role="radiogroup" aria-label="Ocena kraju">
-            ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-r="${n}" role="radio" aria-checked="${c.rating === n}" aria-label="${n} na 5" class="${c.rating >= n ? 'on' : ''}">${ICON_HEART}</button>`).join('')}
-          </div>
-        </div>
+      <div class="field">
+        <span class="field-label">Pierwszy raz <span class="muted small">(dzień i miesiąc, jeśli pamiętasz)</span></span>
+        <div id="firstDate">${datePickerHTML(c.firstDate && D.yearOf(c.firstDate) === c.firstYear ? c.firstDate : (c.firstYear ? String(c.firstYear) : ''), { label: 'Pierwszy raz' })}</div>
       </div>
       <p class="field-error" id="firstYearErr" hidden>Wpisz rok od ${MIN_YEAR} do ${THIS_YEAR}.</p>
+      <div class="field">
+        <span class="field-label">Ocena</span>
+        <div class="hearts" id="hearts" role="radiogroup" aria-label="Ocena kraju">
+          ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-r="${n}" role="radio" aria-checked="${c.rating === n}" aria-label="${n} na 5" class="${c.rating >= n ? 'on' : ''}">${ICON_HEART}</button>`).join('')}
+        </div>
+      </div>
       <div class="field">
         <span class="field-label">Kolejne wizyty</span>
         <ul class="visits" id="visits"></ul>
@@ -248,7 +246,7 @@ function bindSheet(id, f, c) {
       state.countries[id] = { visited: true, wish: false, firstYear: null, visits: [], notes: prev.notes || '', rating: 0, plannedDate: '', addedAt: new Date().toISOString() };
       saveNow(); stampPop(id); afterDataChange();
       renderSheet();
-      const y = $('firstYear'); if (y && window.matchMedia('(pointer: fine)').matches) y.focus();
+      const y = sheetBody.querySelector('#firstDate .dp-y'); if (y && window.matchMedia('(pointer: fine)').matches) y.focus();
     });
     $('markWish').addEventListener('click', () => {
       if (c && c.wish) {
@@ -272,21 +270,19 @@ function bindSheet(id, f, c) {
   }
 
   const updateStamp = () => {
-    $('stampText').textContent = c.firstYear ? `Pierwszy raz w ${c.firstYear}` : 'Uzupełnij rok pierwszej wizyty';
+    const when = visitDateText(c.firstYear, c.firstDate);
+    $('stampText').textContent = when ? `Pierwszy raz: ${when}` : 'Uzupełnij datę pierwszej wizyty';
     $('sheetSub').textContent = subLine(id);
     const mini = sheetBody.querySelector('.stamp-mini');
     if (mini) mini.innerHTML = stampSVG(id);
   };
   updateStamp();
 
-  $('firstYear').addEventListener('input', (e) => {
-    const v = e.target.value.trim();
-    const ok = v === '' || validYear(v);
-    $('firstYearErr').hidden = ok || v.length < 4;
-    if (!ok) return;
-    c.firstYear = v === '' ? null : Number(v);
+  bindDatePicker($('firstDate').querySelector('.dpick'), (v) => {
+    c.firstYear = v ? D.yearOf(v) : null;
+    if (v) c.firstDate = v; else delete c.firstDate;
     updateStamp(); saveSoon(); afterDataChange(false);
-  });
+  }, (bad) => { $('firstYearErr').hidden = !bad; });
   $('hearts').addEventListener('click', (e) => {
     const b = e.target.closest('[data-r]'); if (!b) return;
     const r = Number(b.dataset.r);
@@ -299,7 +295,7 @@ function bindSheet(id, f, c) {
   $('addVisit').addEventListener('click', () => {
     c.visits.push({ year: null, note: '' });
     saveSoon(); renderVisits(c, updateStamp); updateStamp();
-    const rows = $('visits').querySelectorAll('.year');
+    const rows = $('visits').querySelectorAll('.dp-y');
     if (rows.length) rows[rows.length - 1].focus();
   });
   $('unmark').addEventListener('click', () => {
@@ -316,16 +312,15 @@ function renderVisits(c, updateStamp) {
   const ul = $('visits');
   ul.innerHTML = c.visits.map((v, i) => `
     <li class="visit-row" data-i="${i}">
-      <input class="year" type="number" inputmode="numeric" min="${MIN_YEAR}" max="${THIS_YEAR}" placeholder="Rok" value="${v.year ?? ''}" aria-label="Rok wizyty ${i + 2}">
+      ${datePickerHTML(v.date && D.yearOf(v.date) === v.year ? v.date : (v.year ? String(v.year) : ''), { label: `Wizyta ${i + 2}` })}
       <input class="note" type="text" placeholder="Krótki opis (opcjonalnie)" value="${esc(v.note)}" aria-label="Opis wizyty ${i + 2}">
       <button type="button" class="icon-btn" aria-label="Usuń wizytę">${ICON_TRASH}</button>
     </li>`).join('');
   ul.querySelectorAll('.visit-row').forEach((row) => {
     const i = Number(row.dataset.i);
-    row.querySelector('.year').addEventListener('input', (e) => {
-      const v = e.target.value.trim();
-      if (v !== '' && !validYear(v)) return;
-      c.visits[i].year = v === '' ? null : Number(v);
+    bindDatePicker(row.querySelector('.dpick'), (val) => {
+      c.visits[i].year = val ? D.yearOf(val) : null;
+      if (val) c.visits[i].date = val; else delete c.visits[i].date;
       saveSoon(); afterDataChange(false);
     });
     row.querySelector('.note').addEventListener('input', (e) => { c.visits[i].note = e.target.value; saveSoon(); });

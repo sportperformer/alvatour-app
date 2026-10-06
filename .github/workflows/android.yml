@@ -207,7 +207,10 @@ jobs:
         env:
           VERSION: ${{ needs.build.outputs.version }}
           PRERELEASE: ${{ needs.build.outputs.prerelease }}
-        run: node scripts/release-notes.mjs "$VERSION" "$PRERELEASE" > notes.md && cat notes.md
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          last=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2>/dev/null || true)
+          node scripts/release-notes.mjs "$VERSION" "$PRERELEASE" "$last" > notes.md && cat notes.md
       - name: Publikacja
         env:
           GH_TOKEN: ${{ github.token }}

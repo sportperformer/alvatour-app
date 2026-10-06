@@ -205,7 +205,7 @@ async function startTimelapse() {
   for (let i = 0; i < years.length; i++) {
     const y = years[i];
     if (token !== gameToken) return;
-    const fresh = ids.filter((id) => entry(id).firstYear === y);
+    const fresh = ids.filter((id) => entry(id).firstYear === y).sort((a, b) => (firstVisitKey(a) < firstVisitKey(b) ? -1 : 1));
     const c = d3.geoCentroid({ type: 'MultiPoint', coordinates: fresh.map((id) => byId.get(id).focus) });
     await flyTo([-c[0], -clamp(c[1], -60, 60)], 1.15, 1100);
     if (token !== gameToken) return;
@@ -281,7 +281,7 @@ async function makeShareCard() {
   g.fillStyle = '#e8b34a'; roundRect(g, Wc / 2 - rw / 2, 960, rw, 52, 26); g.fill();
   g.fillStyle = '#1b2a3d'; g.fillText(rt, Wc / 2, 996);
   // flagi
-  const ids = x.v.slice().sort((a, b) => (entry(a).firstYear ?? 9999) - (entry(b).firstYear ?? 9999));
+  const ids = x.v.slice().sort((a, b) => (firstVisitKey(a) < firstVisitKey(b) ? -1 : firstVisitKey(a) > firstVisitKey(b) ? 1 : 0));
   const flags = ids.slice(0, 18);
   g.font = `44px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
   const fw = 56, startX = Wc / 2 - (flags.length * fw) / 2 + fw / 2;

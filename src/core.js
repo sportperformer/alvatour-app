@@ -80,6 +80,71 @@ const isWish = (id) => !!(state.countries[id] && state.countries[id].wish);
 function visitedIds() { return Object.keys(state.countries).filter(isVisited); }
 function wishIds() { return Object.keys(state.countries).filter(isWish); }
 
+/* ================= Daty: dzień i miesiąc opcjonalne ================= */
+// Wartość: "2024", "2024-04" albo "2024-04-15" (AlvaData.dates).
+const D = AlvaData.dates;
+/** Wybór daty: [dzień] [miesiąc] [rok]. future: można wybrać przyszły rok (np. planowany termin). */
+function datePickerHTML(value, { future = false, label = 'Data' } = {}) {
+  const p = D.parsePartial(value) || {};
+  const maxY = future ? THIS_YEAR + 15 : THIS_YEAR;
+  const days = Array.from({ length: 31 }, (_, i) => i + 1).map((d) => `<option value="${d}" ${p.d === d ? 'selected' : ''}>${d}</option>`).join('');
+  const months = D.MONTHS.map((m, i) => `<option value="${i + 1}" ${p.m === i + 1 ? 'selected' : ''}>${m}</option>`).join('');
+  return `<span class="dpick" data-max="${maxY}" role="group" aria-label="${esc(label)}">
+    <select class="dp-d" aria-label="${esc(label)}: dzień"><option value="">dzień</option>${days}</select>
+    <select class="dp-m" aria-label="${esc(label)}: miesiąc"><option value="">miesiąc</option>${months}</select>
+    <input class="dp-y" type="number" inputmode="numeric" min="${MIN_YEAR}" max="${maxY}" placeholder="rok" value="${p.y ?? ''}" aria-label="${esc(label)}: rok">
+  </span>`;
+}
+function datePickerValue(el) {
+  const y = el.querySelector('.dp-y').value.trim();
+  return y ? D.partialFromParts(y, el.querySelector('.dp-m').value, el.querySelector('.dp-d').value) : '';
+}
+function setDatePicker(el, value) {
+  const p = D.parsePartial(value) || {};
+  el.querySelector('.dp-y').value = p.y ?? '';
+  el.querySelector('.dp-m').value = p.m ?? '';
+  el.querySelector('.dp-d').value = p.d ?? '';
+  syncDatePicker(el);
+}
+/** Dzień tylko z miesiącem; dni ponad długość miesiąca wyłączone. */
+function syncDatePicker(el) {
+  const y = Number(el.querySelector('.dp-y').value) || 2000, m = Number(el.querySelector('.dp-m').value) || 0;
+  const dSel = el.querySelector('.dp-d');
+  dSel.disabled = !m;
+  if (!m) dSel.value = '';
+  const dim = m ? D.daysInMonth(y, m) : 31;
+  dSel.querySelectorAll('option[value]:not([value=""])').forEach((o) => { o.disabled = Number(o.value) > dim; });
+  if (Number(dSel.value) > dim) dSel.value = '';
+}
+/**
+ * onChange(wartość) po każdej zmianie, gdy data jest poprawna albo pusta.
+ * onInvalid(true/false): rok spoza zakresu (np. w trakcie pisania).
+ */
+function bindDatePicker(el, onChange, onInvalid = () => {}) {
+  const maxY = Number(el.dataset.max) || THIS_YEAR;
+  const emit = () => {
+    syncDatePicker(el);
+    const y = el.querySelector('.dp-y').value.trim();
+    const ok = y === '' || (Number.isInteger(Number(y)) && Number(y) >= MIN_YEAR && Number(y) <= maxY);
+    onInvalid(!ok && y.length >= 4);
+    if (ok) onChange(datePickerValue(el));
+  };
+  el.querySelectorAll('select').forEach((x) => x.addEventListener('change', emit));
+  el.querySelector('.dp-y').addEventListener('input', emit);
+  syncDatePicker(el);
+}
+/** Data wizyty do wyświetlenia: dokładna, jeśli pasuje do roku; inaczej sam rok. */
+function visitDateText(year, date) {
+  if (date && D.yearOf(date) === year) return D.formatPartial(date);
+  return year ? String(year) : '';
+}
+/** Klucz sortowania kraju: rok pierwszej wizyty, w roku od najdawniejszej daty. */
+function firstVisitKey(id) {
+  const c = entry(id);
+  if (!c || c.firstYear == null) return '9999-99-99';
+  return c.firstDate && D.yearOf(c.firstDate) === c.firstYear ? D.partialSortKey(c.firstDate) : D.partialSortKey(String(c.firstYear));
+}
+
 /* ================= Dane geograficzne (wypełniane w main.js) ================= */
 let features = [];
 const byId = new Map();
@@ -189,31 +254,52 @@ function toast(html, opts = {}) {
 /* ================= Konfetti (płótno efektów) ================= */
 const fxCanvas = $('fx');
 const fx = fxCanvas.getContext('2d');
-let particles = [], fxRunning = false;
+let particles = [], fxRunning = false, fxLastFrame = 0, fxSafety = null;
+const FX_MAX_MS = 4000; // konfetti nigdy nie zostaje na ekranie dłużej niż 4 s
 function confetti(x, y, n = 90, spread = 1) {
   if (reducedMotion()) return;
   const r = fxCanvas.getBoundingClientRect();
   if (x == null) { x = r.width / 2; y = r.height / 2; }
   const colors = C.inks.concat([C.gold]);
+  const born = performance.now();
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2, s = (3 + Math.random() * 7) * spread;
-    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 4, g: 0.22, life: 70 + Math.random() * 40, w: 5 + Math.random() * 5, h: 3 + Math.random() * 4, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4, c: colors[i % colors.length] });
+    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 4, g: 0.22, life: 70 + Math.random() * 40, w: 5 + Math.random() * 5, h: 3 + Math.random() * 4, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4, c: colors[i % colors.length], born });
   }
-  if (!fxRunning) { fxRunning = true; requestAnimationFrame(fxLoop); }
+  // pętla mogła stanąć (np. Android wstrzymał animację w tle): uruchom ją ponownie
+  if (fxRunning && born - fxLastFrame > 300) fxRunning = false;
+  if (!fxRunning) { fxRunning = true; fxLastFrame = born; requestAnimationFrame(fxLoop); }
+  clearTimeout(fxSafety);
+  fxSafety = setTimeout(stopFx, FX_MAX_MS + 500);
 }
-function fxLoop() {
-  const r = fxCanvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
-  if (fxCanvas.width !== Math.round(r.width * dpr)) { fxCanvas.width = Math.round(r.width * dpr); fxCanvas.height = Math.round(r.height * dpr); }
-  fx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  fx.clearRect(0, 0, r.width, r.height);
-  particles = particles.filter((p) => p.life > 0);
-  for (const p of particles) {
-    p.vy += p.g; p.vx *= 0.985; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life--;
-    fx.save(); fx.translate(p.x, p.y); fx.rotate(p.rot); fx.globalAlpha = Math.min(1, p.life / 25);
-    fx.fillStyle = p.c; fx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); fx.restore();
-  }
-  if (particles.length) requestAnimationFrame(fxLoop); else { fxRunning = false; fx.clearRect(0, 0, r.width, r.height); }
+/** Zatrzymuje efekt i czyści całe płótno (także gdy coś poszło nie tak). */
+function stopFx() {
+  clearTimeout(fxSafety);
+  particles = [];
+  fxRunning = false;
+  try { fx.setTransform(1, 0, 0, 1, 0, 0); fx.clearRect(0, 0, fxCanvas.width, fxCanvas.height); } catch (e) { /* */ }
 }
+function fxLoop(now) {
+  if (!fxRunning) return;
+  fxLastFrame = now || performance.now();
+  try {
+    const r = fxCanvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const W = Math.round(r.width * dpr), H = Math.round(r.height * dpr);
+    if (fxCanvas.width !== W || fxCanvas.height !== H) { fxCanvas.width = W; fxCanvas.height = H; }
+    fx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fx.clearRect(0, 0, r.width, r.height);
+    particles = particles.filter((p) => p.life > 0 && fxLastFrame - p.born < FX_MAX_MS);
+    for (const p of particles) {
+      p.vy += p.g; p.vx *= 0.985; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life--;
+      fx.save(); fx.translate(p.x, p.y); fx.rotate(p.rot); fx.globalAlpha = Math.max(0, Math.min(1, p.life / 25));
+      fx.fillStyle = p.c; fx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); fx.restore();
+    }
+  } catch (e) { stopFx(); return; }
+  if (particles.length) requestAnimationFrame(fxLoop); else stopFx();
+}
+// po powrocie do aplikacji (z tła, z systemowego okna) konfetti nie ma już sensu: czyścimy
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (fxRunning || particles.length)) stopFx(); });
+window.addEventListener('pageshow', () => { if (fxRunning || particles.length) stopFx(); });
 
 /* ================= Rangi ================= */
 const RANKS = [
