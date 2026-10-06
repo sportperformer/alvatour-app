@@ -460,6 +460,20 @@ h2, h3 { text-wrap: balance; }
 .onb p { margin: 0; text-align: center; color: var(--muted); }
 .share { display: grid; gap: 12px; }
 .share-head { display: flex; justify-content: space-between; align-items: center; }
+/* Okna dialogowe danych: kopie, import */
+.dlg { display: grid; gap: 12px; }
+.dlg h2 { margin: 0; font: 800 22px/1.15 var(--font-display); }
+.dlg p { margin: 0; }
+.dlg-big { font: 700 18px/1.3 var(--font-display); }
+.onb-restore { justify-self: center; font-size: 14px; }
+.backup-status { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 4px 0; font-size: 14px; }
+.backup-status dt { color: var(--muted); }
+.backup-status dd { margin: 0; font-weight: 600; text-align: right; }
+.backup-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.backup-row { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: none; color: inherit; text-align: left; font: inherit; }
+.backup-go { color: var(--accent); font-weight: 600; font-size: 14px; }
+.toast-warn { border: 1.5px solid var(--danger); }
+.toast [data-export-now] { pointer-events: auto; text-decoration: underline; }
 .share-head h2 { margin: 0; font: 800 22px/1.1 var(--font-display); }
 .share-img { width: 100%; max-width: 100%; border-radius: 12px; box-shadow: var(--shadow); }
 

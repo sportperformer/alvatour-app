@@ -363,6 +363,7 @@ function openMenu() {
   $('setSpin').checked = state.settings.spin;
   $('setSound').checked = state.settings.sound;
   menuMsg(''); $('wipeConfirm').hidden = true; $('pasteBox').hidden = true;
+  renderBackupStatus();
 }
 $('setName').addEventListener('input', (e) => { state.settings.name = e.target.value; saveSoon(); });
 $('setHome').addEventListener('change', (e) => { state.settings.home = e.target.value; saveNow(); afterDataChange(); });
@@ -376,52 +377,173 @@ $('view-menu').querySelector('[data-colors]').parentElement.addEventListener('cl
   requestRender();
 });
 
-function exportJSON() {
-  saveNow();
-  return JSON.stringify({ app: 'alvatour', exportedAt: new Date().toISOString(), ...state }, null, 2);
-}
-$('btnExport').addEventListener('click', () => {
+/* ---------- Kopie zapasowe, eksport, import ---------- */
+const fmtWhen = (iso) => {
+  if (!iso) return 'jeszcze nie było';
+  const d = new Date(iso);
+  return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+const fmtDay = (d) => (d ? `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}` : '');
+async function renderBackupStatus() {
+  $('backupFolder').textContent = AlvaData.folderLabel;
   try {
-    const blob = new Blob([exportJSON()], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `alvatour-kopia-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    menuMsg('Plik zapisany. Jeśli nic się nie pobrało, użyj „Kopiuj do schowka”.');
-  } catch (e) { menuMsg('Nie udało się pobrać pliku. Użyj „Kopiuj do schowka”.'); }
-});
-$('btnCopy').addEventListener('click', () => {
-  const txt = exportJSON();
+    const st = await AlvaData.status();
+    $('backupStatus').innerHTML = `<dt>Ostatnia kopia w telefonie</dt><dd>${esc(fmtWhen(st.lastBackupAt))}</dd>
+      <dt>Ostatni eksport (poza telefon)</dt><dd>${esc(fmtWhen(st.lastExportAt))}</dd>`;
+    $('btnUndoImport').hidden = !st.lastImport;
+  } catch (e) { $('backupStatus').innerHTML = ''; }
+}
+async function exportAll(fromMenu = true) {
+  const msg = fromMenu ? menuMsg : (t) => toast(esc(t));
+  msg('Przygotowuję kopię…');
+  try {
+    const r = await AlvaData.exportAndShare();
+    msg(r.shared ? `Gotowe: ${r.name}.${r.saved ? ` Kopia jest też w ${AlvaData.folderLabel}.` : ''}` : `Anulowano udostępnianie.${r.saved ? ` Plik ${r.saved} zapisałem w ${AlvaData.folderLabel}.` : ''}`);
+  } catch (e) { console.error(e); msg('Nie udało się wyeksportować danych. Spróbuj „Kopiuj do schowka”.'); }
+  if (fromMenu) renderBackupStatus();
+}
+$('btnExport').addEventListener('click', () => exportAll(true));
+$('btnCopy').addEventListener('click', async () => {
+  const { text: txt } = await AlvaData.exportAll();
   const fallback = () => { $('pasteBox').hidden = false; $('pasteArea').value = txt; $('pasteArea').select(); menuMsg('Zaznaczyłem dane w polu poniżej, skopiuj je ręcznie.'); };
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(() => menuMsg('Skopiowano dane do schowka.'), fallback);
   else fallback();
 });
-function importText(txt) {
-  let data;
-  try { data = JSON.parse(txt); } catch (e) { menuMsg('To nie jest poprawny plik JSON z kopią.'); return; }
-  if (!data || typeof data.countries !== 'object') { menuMsg('W pliku brakuje listy krajów. Czy to kopia z AlvaTour?'); return; }
-  state = normalizeState(data);
+
+/** Po wczytaniu nowych danych: odśwież cały widok. */
+function applyLoadedState(next) {
+  state = next;
   state.settings.onboarded = true;
   saveNow(); checkProgress(true); afterDataChange();
   if (selectedId) renderSheet();
-  openMenu();
-  const n = visitedIds().length;
-  menuMsg(`Wczytano ${countries(n)}.`);
+}
+
+/** Podgląd kopii i potwierdzenie przed wczytaniem. */
+async function confirmImport(text, { source = 'plik', after } = {}) {
+  const prev = await AlvaData.previewImport(text);
+  if (!prev.ok) { openModal(`<div class="dlg"><h2>Nie mogę wczytać kopii</h2><p>${esc(prev.error)}</p><div class="btn-row"><button type="button" class="btn" data-x>OK</button></div></div>`, (card) => card.querySelector('[data-x]').addEventListener('click', () => { closeModal(); if (!state.settings.onboarded) showOnboarding(); })); return false; }
+  const when = prev.info.exportedAt ? fmtWhen(prev.info.exportedAt) : 'nieznana data';
+  const kindLabel = prev.info.kind === 'web' ? 'eksport z wersji webowej' : prev.info.kind === 'raw' ? 'dane z przeglądarki' : 'kopia AlvaTour';
+  return new Promise((resolve) => {
+    openModal(`<div class="dlg">
+      <h2>Wczytać tę kopię?</h2>
+      <p class="dlg-big">${esc(prev.text)}</p>
+      <p class="muted">${esc(kindLabel)} z ${esc(when)}${prev.info.appVersion ? `, wersja ${esc(prev.info.appVersion)}` : ''} (${esc(source)}).</p>
+      <p>Obecne dane zostaną zastąpione. Najpierw zrobię ich kopię, a wczytanie będzie można cofnąć.</p>
+      <div class="btn-row"><button type="button" class="btn" data-ok>Wczytaj</button><button type="button" class="btn btn-soft" data-x>Anuluj</button></div>
+    </div>`, (card) => {
+      card.querySelector('[data-x]').addEventListener('click', () => { closeModal(); if (!state.settings.onboarded) showOnboarding(); resolve(false); });
+      card.querySelector('[data-ok]').addEventListener('click', async (e) => {
+        e.target.disabled = true; e.target.textContent = 'Wczytuję…';
+        try {
+          applyLoadedState(await AlvaData.applyImport(prev));
+          closeModal();
+          toast(`<span><b>Wczytano kopię.</b><br>${esc(prev.text)}</span>`, { ttl: 4000 });
+          if (after) after();
+          resolve(true);
+        } catch (err) {
+          console.error(err);
+          card.querySelector('.dlg').insertAdjacentHTML('beforeend', `<p class="field-error">Nie udało się wczytać: ${esc(err.message || err)}. Twoje dane są nietknięte.</p>`);
+          e.target.disabled = false; e.target.textContent = 'Wczytaj';
+          resolve(false);
+        }
+      });
+    });
+  });
 }
 $('importFile').addEventListener('change', (e) => {
   const file = e.target.files && e.target.files[0]; if (!file) return;
-  const r = new FileReader(); r.onload = () => importText(String(r.result)); r.readAsText(file);
+  const r = new FileReader();
+  r.onload = () => confirmImport(String(r.result), { source: file.name, after: () => { if (activeView === 'menu') { openMenu(); menuMsg('Kopia wczytana.'); } } });
+  r.readAsText(file);
   e.target.value = '';
 });
 $('btnPasteToggle').addEventListener('click', () => { $('pasteBox').hidden = !$('pasteBox').hidden; $('pasteArea').value = ''; });
-$('btnPasteImport').addEventListener('click', () => importText($('pasteArea').value));
+$('btnPasteImport').addEventListener('click', () => confirmImport($('pasteArea').value, { source: 'wklejone dane' }));
+$('btnUndoImport').addEventListener('click', () => {
+  openModal(`<div class="dlg"><h2>Cofnąć ostatnie wczytanie?</h2><p>Przywrócę dane sprzed ostatniego wczytania kopii. Obecne dane najpierw zapiszę w kopii.</p>
+    <div class="btn-row"><button type="button" class="btn" data-ok>Cofnij</button><button type="button" class="btn btn-soft" data-x>Anuluj</button></div></div>`, (card) => {
+    card.querySelector('[data-x]').addEventListener('click', closeModal);
+    card.querySelector('[data-ok]').addEventListener('click', async () => {
+      try { applyLoadedState(await AlvaData.undoImport()); closeModal(); openMenu(); menuMsg('Przywrócono dane sprzed wczytania.'); } catch (e) { closeModal(); menuMsg('Nie udało się cofnąć: ' + (e.message || e)); }
+    });
+  });
+});
+
+/** Lista kopii w telefonie z możliwością przywrócenia. */
+async function openBackupsList() {
+  const list = (await AlvaData.listBackups()).filter((b) => b.kind);
+  const rows = list.map((b, i) => `<li><button type="button" class="backup-row" data-i="${i}">
+      <span><b>${esc(fmtWhen(b.date && b.date.toISOString()))}</b><br><span class="muted small">${esc(AlvaData.KINDS[b.kind].label)}</span></span>
+      <span class="backup-go">Podgląd</span></button></li>`).join('');
+  openModal(`<div class="dlg">
+    <div class="share-head"><h2>Kopie w telefonie</h2><button type="button" class="btn-ghost icon-only" data-x aria-label="Zamknij"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+    <p class="muted small">Folder: ${esc(AlvaData.folderLabel)}. Kopie sprzed ponownej instalacji aplikacji wczytasz przez „Wczytaj kopię z pliku”.</p>
+    ${list.length ? `<ul class="backup-list">${rows}</ul>` : '<p>Nie ma jeszcze żadnej kopii. Pierwsza powstanie automatycznie, gdy oznaczysz kraj.</p>'}
+  </div>`, (card) => {
+    card.querySelector('[data-x]').addEventListener('click', closeModal);
+    card.querySelectorAll('[data-i]').forEach((btn) => btn.addEventListener('click', async () => {
+      const b = list[Number(btn.dataset.i)];
+      let text;
+      try { text = await AlvaData.readBackupText(b.name); } catch (e) { toast('Nie udało się odczytać kopii.'); return; }
+      closeModal();
+      confirmImport(text, { source: b.name, after: () => { if (activeView === 'menu') openMenu(); } });
+    }));
+  });
+}
+$('btnBackups').addEventListener('click', () => openBackupsList().catch((e) => menuMsg('Nie udało się odczytać listy kopii: ' + (e.message || e))));
+
 $('btnWipe').addEventListener('click', () => { $('wipeConfirm').hidden = false; });
 $('btnWipeNo').addEventListener('click', () => { $('wipeConfirm').hidden = true; });
-$('btnWipeYes').addEventListener('click', () => {
+$('btnWipeYes').addEventListener('click', async () => {
+  try { await AlvaData.beforeWipe(); } catch (e) { menuMsg('Nie udało się zrobić kopii, więc niczego nie usunąłem.'); return; }
   state.countries = {}; state.badges = {}; saveNow(); lastRankIdx = 0; afterDataChange();
-  $('wipeConfirm').hidden = true; menuMsg('Usunięto wszystkie oznaczenia i odznaki.');
+  $('wipeConfirm').hidden = true; menuMsg('Usunięto oznaczenia i odznaki. Kopia sprzed usunięcia jest w „Kopie w telefonie”.');
+  renderBackupStatus();
 });
+
+/** Komunikaty z warstwy danych przy starcie. Zwraca true, jeśli pokazała okno (wtedy bez powitania). */
+function handleDataNotices(notices) {
+  let modal = false;
+  for (const n of notices || []) {
+    if (n.type === 'read-only') {
+      const why = n.reason === 'newer'
+        ? 'Dane pochodzą z nowszej wersji AlvaTour niż ta zainstalowana.'
+        : `Aktualizacja formatu danych (v${n.from} → v${n.to}) nie powiodła się i została wycofana.${n.backup ? ` Kopia sprzed aktualizacji: ${n.backup}.` : ''}`;
+      openModal(`<div class="dlg"><h2>Tryb bezpieczny</h2><p>${esc(why)}</p>
+        <p><b>Twoje dane są nietknięte.</b> Możesz je przeglądać, ale zmiany nie będą zapisywane, dopóki tego nie naprawimy.</p>
+        <p class="muted small">Nie odinstalowuj aplikacji i nie czyść jej danych. Zrób zrzut ekranu tego komunikatu i wyślij go do dewelopera.</p>
+        <div class="btn-row"><button type="button" class="btn" data-x>Rozumiem</button></div></div>`, (card) => card.querySelector('[data-x]').addEventListener('click', closeModal));
+      state.settings.onboarded = true;
+      return true;
+    }
+    if (n.type === 'offer-restore') {
+      modal = true;
+      openModal(`<div class="dlg"><h2>Znalazłem Twoją kopię</h2>
+        <p>Aplikacja nie ma żadnych danych, a w telefonie jest kopia z ${esc(fmtWhen(n.info.exportedAt))}:</p>
+        <p class="dlg-big">${esc(n.text)}</p>
+        <div class="btn-row"><button type="button" class="btn" data-ok>Przywróć tę kopię</button><button type="button" class="btn btn-soft" data-no>Zacznij od zera</button></div></div>`, (card) => {
+        card.querySelector('[data-ok]').addEventListener('click', async () => {
+          const r = await AlvaData.readBackup(n.name);
+          if (r.ok) { applyLoadedState(await AlvaData.applyImport(r)); closeModal(); toast(`<span><b>Przywrócono dane.</b><br>${esc(r.text)}</span>`, { ttl: 4000 }); }
+          else { closeModal(); toast(esc(r.error)); showOnboarding(); }
+        });
+        card.querySelector('[data-no]').addEventListener('click', () => { AlvaData.declineRestore(); closeModal(); if (!state.settings.onboarded) showOnboarding(); });
+      });
+    }
+    if (n.type === 'legacy-imported') toast(`<span><b>Przeniosłem Twoje dane do nowego magazynu.</b><br>${esc(n.text)}</span>`, { ttl: 5000 });
+    if (n.type === 'migrated') console.info(`AlvaTour: dane zaktualizowane v${n.from} -> v${n.to}, kopia ${n.backup}`);
+    if (n.type === 'export-reminder' && !modal) {
+      AlvaData.reminderShown();
+      setTimeout(() => {
+        toast(`<span><b>Czas na kopię poza telefonem</b><br>${n.lastExport ? 'Ostatni eksport: ' + esc(fmtWhen(n.lastExport)) : 'Nie było jeszcze eksportu'}. <button type="button" class="link" data-export-now>Eksportuj teraz</button></span>`, { ttl: 9000 });
+      }, 1500);
+    }
+  }
+  return modal;
+}
+document.addEventListener('click', (e) => { if (e.target.closest('[data-export-now]')) exportAll(false); });
+
 $('appVersion').textContent = APP_VERSION;
 
 /* ================= Wyszukiwarka ================= */
@@ -491,7 +613,9 @@ function showOnboarding() {
       <div class="field"><label for="onbHome">Skąd startujesz?</label><select id="onbHome"></select></div>
       <label class="switch"><input type="checkbox" id="onbMark" checked><span>Wbij od razu stempel mojego kraju</span></label>
       <button type="button" class="btn btn-big" id="onbGo">Ruszamy w drogę</button>
+      <button type="button" class="link onb-restore" id="onbRestore">Mam kopię zapasową, wczytaj ją</button>
     </div>`, (card) => {
+    card.querySelector('#onbRestore').addEventListener('click', () => $('importFile').click());
     fillHomeSelect(card.querySelector('#onbHome'), state.settings.home || 'PL');
     card.querySelector('#onbGo').addEventListener('click', () => {
       state.settings.name = card.querySelector('#onbName').value.trim();

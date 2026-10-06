@@ -13,6 +13,15 @@ Dane zapisują się tylko na telefonie, w prywatnej pamięci aplikacji. Nic nie 
 | Dane | własne | osobne, niezależne od wersji produkcyjnej |
 | Ikona | globus | globus z pomarańczowym paskiem DEV |
 
+## Dane i kopie zapasowe
+
+- Baza SQLite w prywatnej pamięci aplikacji. Jedyny moduł, który ją czyta i zapisuje: `src/data/` (repozytorium danych). Kod interfejsu korzysta tylko z `window.AlvaData`.
+- Każdy zapis w transakcji. Zapisywane są tylko zmiany. Przed usunięciem 3+ krajów lub miejsc naraz: automatyczna kopia.
+- Migracje (`src/data/schema.js`) tylko dodają. Przed migracją: kopia `pre-migration-v<N>-to-v<N+1>-<data>.json`, po migracji: kontrola liczności, przy błędzie wycofanie i tryb bezpieczny.
+- Kopie: `Documents/AlvaTour/kopie` (wariant DEV: `Documents/AlvaTour-DEV/kopie`) oraz pamięć aplikacji (objęta kopią Google). Rotacja: 14 dni kopii dziennych, kopie przedmigracyjne/przed importem 90 dni. Eksporty ręczne nie są nigdy usuwane.
+- Format pliku kopii: `app`, `format_version`, `schema_version`, `exported_at`, `app_version`, `counts`, `checksum`, `data`. Import przyjmuje też eksport z wersji webowej i surowy stan z przeglądarki.
+- Fixtures: `tests/fixtures/` (tylko sztuczne dane, repozytorium jest publiczne). Przy każdym wydaniu: `node scripts/make-fixture.mjs` i wpis w `expected.json`.
+
 ## Wydania
 
 Workflow `.github/workflows/android.yml`:

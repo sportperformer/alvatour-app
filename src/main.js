@@ -77,6 +77,16 @@ if (mqDark.addEventListener) mqDark.addEventListener('change', onTheme);
 new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
 async function start() {
+  let boot;
+  try {
+    boot = await AlvaData.init({ appVersion: APP_VERSION });
+  } catch (e) {
+    console.error('AlvaTour: nie udało się otworzyć danych', e);
+    $('loading').textContent = 'Nie udało się otworzyć Twoich danych. Nic nie zostało usunięte. Zamknij aplikację i otwórz ją ponownie.';
+    return;
+  }
+  state = boot.state;
+  dataReady = !boot.readOnly;
   resize();
   window.addEventListener('resize', resize);
   d3.select(canvas).call(zoomer).on('dblclick.zoom', null);
@@ -98,6 +108,8 @@ async function start() {
   const home = homeId();
   if (home) { const f = byId.get(home); rotation = [-f.focus[0], -clamp(f.focus[1] - 10, -60, 60), 0]; }
   render();
+  // komunikaty warstwy danych (tryb awaryjny, propozycja przywrócenia kopii, przypomnienie o eksporcie)
+  if (handleDataNotices(boot.notices)) return;
   if (handleIncomingShare()) return;
   if (!state.settings.onboarded) showOnboarding();
   else if (!state.settings.hintSeen && !visitedIds().length) $('hint').hidden = false;

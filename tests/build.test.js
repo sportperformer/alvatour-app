@@ -69,3 +69,30 @@ describe('klucz podpisu', () => {
     expect(out).not.toMatch(/\.(jks|keystore|p12|pfx)$/m);
   });
 });
+
+describe('dane: zasady nienaruszalne', () => {
+  it('kod interfejsu nie zapisuje danych sam (tylko przez AlvaData)', () => {
+    for (const f of ['core.js', 'globe.js', 'panel.js', 'views.js', 'fun.js', 'places.js', 'main.js']) {
+      const t = read('src/' + f);
+      expect(t, f).not.toMatch(/localStorage|indexedDB|CapacitorSQLite/);
+    }
+  });
+  it('kod nie czyści cudzych danych ani pamięci podręcznej', () => {
+    const all = ['core.js', 'globe.js', 'panel.js', 'views.js', 'fun.js', 'places.js', 'main.js'].map((f) => read('src/' + f)).join('\n')
+      + readdirSync(join(root, 'src/data')).map((f) => read('src/data/' + f)).join('\n');
+    expect(all).not.toMatch(/caches\.delete|localStorage\.clear|removeItem\(|indexedDB\.deleteDatabase|deleteDatabase\(/);
+  });
+  it('www zawiera warstwę danych', () => {
+    expect(existsSync(join(root, 'www/data.js'))).toBe(true);
+    expect(read('www/index.html').indexOf('data.js')).toBeLessThan(read('www/index.html').indexOf('core.js'));
+  });
+  it('kopia Google (Auto Backup) jest włączona i obejmuje bazę', () => {
+    const m = read('android/app/src/main/AndroidManifest.xml');
+    expect(m).toMatch(/android:allowBackup="true"/);
+    expect(m).toMatch(/android:dataExtractionRules="@xml\/data_extraction_rules"/);
+    expect(m).toMatch(/android:fullBackupContent="@xml\/backup_rules"/);
+    const rules = read('android/app/src/main/res/xml/data_extraction_rules.xml');
+    expect(rules.match(/domain="database"/g)).toHaveLength(2);
+    expect(read('android/app/src/main/res/xml/backup_rules.xml')).toMatch(/domain="database"/);
+  });
+});

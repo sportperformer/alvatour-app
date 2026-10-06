@@ -3,8 +3,6 @@
 'use strict';
 
 const APP_VERSION = '0.0.0-src'; // podmieniane przy buildzie (scripts/build-web.mjs)
-const STORE_KEY = 'alvatour-v1';
-const LEGACY_KEYS = ['bylem-tu-v1'];
 const THIS_YEAR = new Date().getFullYear();
 const MIN_YEAR = 1900;
 const INKS = 8;
@@ -49,71 +47,32 @@ function validYear(y) {
 function hashStr(s) { let h = 2166136261; for (const ch of String(s)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
 
 /* ================= Stan ================= */
-function emptyState() {
-  return {
-    version: 2,
-    countries: {},
-    settings: { colors: 'multi', sort: 'asc', listTab: 'visited', hintSeen: false, onboarded: false, name: '', home: 'PL', lines: false, spin: true, sound: true },
-    badges: {},
-    games: { quizBest: 0, quizPlayed: 0, timelapse: 0, roulette: 0, aiImports: 0 },
-    places: [],
-  };
-}
-function normalizeState(s) {
-  const out = emptyState();
-  if (!s || typeof s !== 'object') return out;
-  if (s.settings && typeof s.settings === 'object') Object.assign(out.settings, s.settings);
-  if (s.badges && typeof s.badges === 'object') Object.assign(out.badges, s.badges);
-  if (s.games && typeof s.games === 'object') Object.assign(out.games, s.games);
-  if (Array.isArray(s.places)) {
-    out.places = s.places.filter((p) => p && p.name && isFinite(p.lat) && isFinite(p.lng)).map((p) => ({
-      id: String(p.id || ('p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6))),
-      name: String(p.name), addr: String(p.addr || ''), city: String(p.city || ''), cc: String(p.cc || ''),
-      lat: Number(p.lat), lng: Number(p.lng), approx: !!p.approx, cat: String(p.cat || 'other'),
-      status: p.status === 'planned' ? 'planned' : 'visited', date: typeof p.date === 'string' ? p.date : '',
-      rating: clamp(Number(p.rating) || 0, 0, 5), note: String(p.note || ''), url: String(p.url || ''), src: String(p.src || ''),
-      addedAt: p.addedAt || new Date().toISOString(),
-    }));
-  }
-  const src = s.countries && typeof s.countries === 'object' ? s.countries : {};
-  for (const [id, c] of Object.entries(src)) {
-    if (!c || (!c.visited && !c.wish)) continue;
-    out.countries[id] = {
-      visited: !!c.visited,
-      wish: !c.visited && !!c.wish,
-      firstYear: validYear(c.firstYear) ? Number(c.firstYear) : null,
-      visits: Array.isArray(c.visits) ? c.visits.map((v) => ({ year: validYear(v && v.year) ? Number(v.year) : null, note: String((v && v.note) || '') })) : [],
-      notes: String(c.notes || ''),
-      rating: clamp(Number(c.rating) || 0, 0, 5),
-      plannedDate: typeof c.plannedDate === 'string' ? c.plannedDate : '',
-      addedAt: c.addedAt || new Date().toISOString(),
-    };
-  }
-  // wersja 1 (Byłem Tu) nie miała onboardingu: jeśli są dane, pomiń powitanie
-  if (!s.version || s.version < 2) { if (Object.keys(out.countries).length) out.settings.onboarded = true; }
-  return out;
-}
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) return normalizeState(JSON.parse(raw));
-    for (const k of LEGACY_KEYS) {
-      const old = localStorage.getItem(k);
-      if (old) return normalizeState(JSON.parse(old));
-    }
-  } catch (e) { /* brak dostępu do pamięci */ }
-  return emptyState();
-}
-let state = loadState();
+// Dane trzyma warstwa danych (data.js -> window.AlvaData): SQLite w telefonie, kopie, migracje.
+// Tu jest tylko stan w pamięci; zapis zawsze przez AlvaData.persist (jedyna droga do bazy).
+const emptyState = () => AlvaData.emptyState();
+const normalizeState = (s) => AlvaData.normalizeState(s);
+let state = emptyState(); // podmieniany w main.js po wczytaniu danych z bazy (AlvaData.init)
+let dataReady = false;
 let saveTimer = null;
 function saveNow() {
   clearTimeout(saveTimer);
+  if (!dataReady) return false; // przed wczytaniem bazy nic nie zapisujemy (nie nadpiszemy danych pustym stanem)
   state.updatedAt = new Date().toISOString();
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); return true; } catch (e) { return false; }
+  AlvaData.persist(state);
+  return true;
 }
 function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 300); }
 window.addEventListener('pagehide', saveNow);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(); });
+AlvaData.beforePause(saveNow);
+let lastSaveErrorToast = 0;
+AlvaData.onError((e) => {
+  console.error('AlvaTour: błąd zapisu danych', e);
+  if (Date.now() - lastSaveErrorToast > 15000 && typeof toast === 'function') {
+    lastSaveErrorToast = Date.now();
+    toast('<span><b>Nie udało się zapisać zmian.</b><br>Spróbuję ponownie przy kolejnej zmianie. Nic nie zostało usunięte.</span>', { kind: 'warn', ttl: 5000 });
+  }
+});
 
 const entry = (id) => state.countries[id];
 const isVisited = (id) => !!(state.countries[id] && state.countries[id].visited);

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+: kopia Google (Auto Backup) i przenoszenie na nowy telefon obejmują bazę SQLite i kopie w pamięci aplikacji. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="database" path="." />
+        <include domain="file" path="kopie/" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" path="." />
+        <include domain="file" path="kopie/" />
+    </device-transfer>
+</data-extraction-rules>

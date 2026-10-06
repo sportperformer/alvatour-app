@@ -8,3 +8,12 @@ Każda wersja ma tu sekcję `## <wersja>`. Jej treść trafia do opisu wydania w
 - Dwie wersje obok siebie: **AlvaTour** i **AlvaTour DEV** (testowa, osobne dane, ikona z paskiem DEV)
 - Czcionki i biblioteki wbudowane w aplikację: działa w pełni offline (poza wyszukiwarką adresów)
 - Usunięty service worker (to on kasował pamięć innych aplikacji z tej samej domeny)
+- Dane w bazie SQLite wewnątrz aplikacji, zapis od razu po każdej zmianie (każdy zapis w całości albo wcale)
+- Kopie automatyczne w folderze **Documents/AlvaTour/kopie**: przy starcie (raz na dobę), przy wyjściu z aplikacji po zmianach (raz na godzinę), przed aktualizacją danych, przed wczytaniem kopii i przed usunięciem danych
+- **Eksportuj wszystkie dane**: plik `alvatour-kopia-RRRR-MM-DD.json` i od razu okno „Udostępnij” (np. Dysk Google)
+- **Wczytaj kopię z pliku**: podgląd zawartości przed wczytaniem, kopia obecnych danych przed zamianą, przycisk **Cofnij ostatnie wczytanie**
+- **Kopie w telefonie**: lista kopii z możliwością przywrócenia
+- Przypomnienie o kopii poza telefonem, jeśli od ostatniego eksportu minęło ponad 7 dni
+- Gdy aplikacja jest pusta, a w telefonie jest kopia, AlvaTour zapyta, czy ją przywrócić
+- Kopia Google (Auto Backup) obejmuje bazę danych
+- Tryb bezpieczny: jeśli aktualizacja formatu danych by się nie udała, dane zostają nietknięte, a aplikacja nie zapisuje zmian
