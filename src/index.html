@@ -110,6 +110,19 @@
     <div class="view-scroll"><ol class="timeline" id="timeline"></ol></div>
   </section>
 
+  <section class="view" id="view-plans" hidden aria-labelledby="plansTitle">
+    <div class="view-head">
+      <div class="plans-title-row">
+        <button type="button" class="btn-ghost icon-only" id="planBack" aria-label="Wszystkie plany" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <h2 id="plansTitle">Plany zwiedzania</h2>
+      </div>
+      <button type="button" class="btn btn-soft" id="planAdd">Dodaj plan</button>
+    </div>
+    <div class="view-scroll" id="plansBody"></div>
+  </section>
+
   <section class="view" id="view-passport" hidden aria-labelledby="passTitle">
     <div class="view-scroll passport-scroll" id="passport"></div>
   </section>
@@ -198,6 +211,10 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="4.5" cy="6" r="1.5" fill="currentColor"/><circle cx="4.5" cy="12" r="1.5" fill="currentColor"/><circle cx="4.5" cy="18" r="1.5" fill="currentColor"/></svg>
       <span>Lista</span>
     </button>
+    <button type="button" data-view="plans">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3.5 6v14L9 18l6 2 5.5-2V4L15 6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 4v14M15 6v14" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span>Plany</span>
+    </button>
     <button type="button" data-view="passport">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="2" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="12" cy="10" r="3.4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 17h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
       <span>Paszport</span>
@@ -223,6 +240,7 @@
 <script src="vendor/d3.min.js"></script>
 <script src="vendor/topojson-client.min.js"></script>
 <script src="native.js"></script>
+<script src="maps.js"></script>
 <script src="data.js"></script>
 <!--APP-SCRIPTS-->
 <script src="core.js"></script>
@@ -231,6 +249,7 @@
 <script src="views.js"></script>
 <script src="fun.js"></script>
 <script src="places.js"></script>
+<script src="plans.js"></script>
 <script src="main.js"></script>
 <!--/APP-SCRIPTS-->
 </body>

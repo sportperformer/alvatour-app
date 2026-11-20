@@ -131,3 +131,15 @@ describe('debugowanie WebView', () => {
     expect(JSON.parse(read('capacitor.config.json')).android.webContentsDebuggingEnabled).toBeUndefined();
   });
 });
+
+describe('klucz mapy Google', () => {
+  it('nie ma go w repozytorium (wstawiany przy buildzie z GitHub Secrets)', () => {
+    let out = '';
+    try {
+      out = execFileSync('git', ['grep', '-I', '-l', '-E', 'AIza[0-9A-Za-z_-]{30,}'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    } catch (e) {
+      if (e.status !== 1) throw e; // 1 = nic nie znaleziono (o to chodzi)
+    }
+    expect(out).toBe('');
+  });
+});

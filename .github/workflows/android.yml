@@ -103,6 +103,7 @@ jobs:
       - name: Pliki aplikacji (www) i synchronizacja z Androidem
         env:
           ALVATOUR_VERSION_NAME: ${{ steps.ver.outputs.version }}
+          ALVATOUR_MAPS_KEY: ${{ secrets.ALVATOUR_MAPS_KEY }}
         run: |
           npm run build
           npx cap sync android

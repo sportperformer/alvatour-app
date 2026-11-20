@@ -167,6 +167,31 @@ if (prodUrl) {
   check(r.error && /inna aplikacja/.test(r.error), 'aktualizacja w aplikacji: DEV odrzuca plik wersji produkcyjnej', JSON.stringify(r));
 }
 
+// 5c. plany zwiedzania: widok i mapa Google (gdy APK ma klucz mapy)
+await page.evaluate(() => {
+  state.plans = [{ id: 'plt', name: 'Test', mid: '', createdAt: new Date().toISOString(), items: [
+    { id: 'plt-0', name: 'Katedra', addr: 'Doma laukums 1, Riga', cat: 'Zabytki', desc: '', color: '#9c27b0', layer: '', lat: 56.9490, lng: 24.1043, geo: 'ok', done: '', placeId: '' },
+    { id: 'plt-1', name: 'Hala', addr: 'Nēģu iela 7, Riga', cat: 'Hale', desc: '', color: '#ffea00', layer: '', lat: 56.9437, lng: 24.1149, geo: 'ok', done: '', placeId: '' },
+  ] }];
+  saveNow(); planOpenId = 'plt'; showView('plans');
+});
+const hasKey = await page.evaluate(() => AlvaMaps.hasKey());
+if (hasKey) {
+  const mapState = await page.waitForFunction(() => {
+    const box = document.getElementById('planMap');
+    if (box && box.querySelector('.gm-style')) return 'ok';
+    const t = box ? box.textContent : '';
+    return /klucz|odrzucił|internet|nie odpowiada/i.test(t) ? t : false;
+  }, null, { timeout: 30000 }).then((h) => h.jsonValue()).catch(() => 'brak odpowiedzi w 30 s');
+  check(mapState === 'ok', 'plany: mapa Google się wyświetla', String(mapState));
+  await page.waitForTimeout(3000);
+  const auth = await page.evaluate(() => (document.getElementById('planMap') || {}).textContent || '');
+  check(!/odrzucił/.test(auth), 'plany: Google akceptuje klucz mapy', auth.slice(0, 120));
+} else console.log('(APK bez klucza mapy: pomijam sprawdzenie mapy Google)');
+await page.locator('.plan-item .plan-check').first().click();
+const planDone = await page.evaluate(() => ({ done: state.plans[0].items[0].done, places: state.places.filter((p) => p.src === 'plan').length }));
+check(!!planDone.done && planDone.places === 1, 'plany: odhaczenie zapisuje miejsce', JSON.stringify(planDone));
+
 // 6. brak awarii
 const fatal = sh('logcat -d -b crash 2>/dev/null || true') + sh(`logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime: Process: ${PKG}" || true`);
 check(!/FATAL EXCEPTION/.test(fatal), 'brak awarii w logach', fatal.slice(0, 300));

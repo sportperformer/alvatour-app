@@ -2,7 +2,7 @@
 'use strict';
 
 let activeView = 'globe';
-const VIEWS = ['list', 'passport', 'stats', 'fun', 'menu'];
+const VIEWS = ['list', 'plans', 'passport', 'stats', 'fun', 'menu'];
 
 function showView(v) {
   if (globeMode !== 'normal' && v !== 'globe') endGame();
@@ -13,6 +13,7 @@ function showView(v) {
   });
   if (v !== 'globe') { closeSheet(); hideTooltip(); }
   if (v === 'list') renderList();
+  if (v === 'plans') renderPlans();
   if (v === 'passport') renderPassport();
   if (v === 'stats') renderStats();
   if (v === 'fun') renderFun();
