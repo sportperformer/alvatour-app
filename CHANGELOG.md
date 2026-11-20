@@ -2,6 +2,14 @@
 
 Każda wersja ma tu sekcję `## <wersja>`. Jej treść trafia do opisu wydania w GitHub Releases.
 
+## 1.2.0
+
+- **Nowa zakładka „Plany”: plany zwiedzania z Google Moje Mapy.** Wklejasz link do swojej mapy, a AlvaTour pobiera wszystkie piny z kategoriami, kolorami i opisami, sama ustala ich położenie po adresie i pokazuje je na **mapie Google**
+- Przy każdym miejscu **checkbox**: odhaczone miejsce blednie na liście i na mapie, a licznik pokazuje postęp (np. 7 / 31). Filtr „Tylko nieodwiedzone”
+- Przycisk **Prowadź** otwiera nawigację pieszą w Google Maps
+- Odhaczone miejsca trafiają też do Twoich miejsc i statystyk (kraj dostaje stempel). Plany są w bazie, w kopiach zapasowych i w eksporcie
+- Ponowny import tej samej mapy zachowuje odhaczenia
+
 ## 1.1.1
 
 - **Planowana podróż** (lista marzeń): zamiast kalendarza wybór dzień / miesiąc / rok; wystarczy sam rok albo miesiąc. Odliczanie dopasowane: „Za 24 dni”, „Za 6 miesięcy”, „W tym roku!”, a na górze np. „w kwietniu 2027”

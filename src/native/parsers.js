@@ -73,3 +73,75 @@ export function parseAI(text) {
     cat: guessCat(String(x.category || '') + ' ' + x.name), note: String(x.note || x.description || '').trim(),
   }));
 }
+
+/* ================= Plany zwiedzania: Google Moje Mapy (KML) ================= */
+
+/** Identyfikator mapy z linku Moich Map (…/maps/d/…?mid=XXXX…). */
+export function myMapsId(url) {
+  const m = String(url || '').match(/[?&]mid=([A-Za-z0-9_-]{10,})/);
+  return m ? m[1] : null;
+}
+export const myMapsKmlUrl = (mid) => `https://www.google.com/maps/d/kml?mid=${encodeURIComponent(mid)}&forcekml=1`;
+
+const XML_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+function xmlText(s) {
+  let t = String(s || '').trim();
+  const cdata = t.match(/^<!\[CDATA\[([\s\S]*?)\]\]>$/);
+  if (cdata) t = cdata[1];
+  return t.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_, e) => (e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)) : XML_ENT[e.toLowerCase()]));
+}
+const tag = (xml, name) => { const m = String(xml).match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`)); return m ? xmlText(m[1]) : ''; };
+const stripHtml = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+
+/** Kolor KML (aabbggrr) albo z identyfikatora stylu Moich Map (icon-1603-E65100-…) -> "#rrggbb". */
+export function kmlColor(styleId, kmlHex) {
+  const m = String(styleId || '').match(/-([0-9A-Fa-f]{6})(?:-|$)/);
+  if (m) return '#' + m[1].toLowerCase();
+  const h = String(kmlHex || '').trim();
+  if (/^[0-9a-f]{8}$/i.test(h)) return '#' + h.slice(6, 8) + h.slice(4, 6) + h.slice(2, 4);
+  return '#c8323c';
+}
+
+/**
+ * KML z Moich Map -> { name, items: [{ name, addr, cat, desc, color, layer, lat, lng }] }.
+ * Współrzędnych może nie być (mapa zrobiona z pliku CSV z adresami): wtedy lat/lng = null.
+ */
+export function parseKml(xml) {
+  const text = String(xml || '');
+  if (!/<kml[\s>]/.test(text)) throw new Error('To nie jest plik mapy (KML).');
+  const styles = {};
+  for (const m of text.matchAll(/<Style\s+id="([^"]+)">([\s\S]*?)<\/Style>/g)) styles[m[1]] = tag(m[2], 'color');
+  const pairs = {};
+  for (const m of text.matchAll(/<StyleMap\s+id="([^"]+)">([\s\S]*?)<\/StyleMap>/g)) {
+    const normal = m[2].match(/<key>normal<\/key>\s*<styleUrl>#?([^<]+)<\/styleUrl>/);
+    if (normal) pairs[m[1]] = normal[1];
+  }
+  const doc = text.match(/<Document>([\s\S]*)<\/Document>/);
+  const docName = doc ? tag(doc[1].replace(/<Folder>[\s\S]*$/, ''), 'name') : '';
+  const items = [];
+  const folders = [...text.matchAll(/<Folder>([\s\S]*?)<\/Folder>/g)];
+  const blocks = folders.length ? folders.map((f) => ({ layer: tag(f[1].replace(/<Placemark>[\s\S]*$/, ''), 'name'), xml: f[1] })) : [{ layer: '', xml: text }];
+  for (const { layer, xml: fx } of blocks) {
+    for (const p of fx.matchAll(/<Placemark>([\s\S]*?)<\/Placemark>/g)) {
+      const px = p[1];
+      const data = {};
+      for (const d of px.matchAll(/<Data\s+name="([^"]+)">\s*<value>([\s\S]*?)<\/value>\s*<\/Data>/g)) data[xmlText(d[1]).toLowerCase()] = xmlText(d[2]);
+      const coords = tag(px, 'coordinates').split(/\s+/)[0];
+      const [lng, lat] = coords ? coords.split(',').map(Number) : [NaN, NaN];
+      const sid = tag(px, 'styleUrl').replace(/^#/, '');
+      const styleId = pairs[sid] || sid;
+      const desc = data.opis || data.description || data.opisy || stripHtml(tag(px, 'description')).replace(/^(Adres|Kategoria|Opis):.*$/gim, '').trim();
+      items.push({
+        name: tag(px, 'name') || data.nazwa || data.name || 'Miejsce',
+        addr: data.adres || data.address || '',
+        cat: data.kategoria || data.category || layer || '',
+        desc: desc || '',
+        color: kmlColor(styleId, styles[styleId]),
+        layer,
+        lat: Number.isFinite(lat) && Math.abs(lat) <= 90 ? lat : null,
+        lng: Number.isFinite(lng) && Math.abs(lng) <= 180 ? lng : null,
+      });
+    }
+  }
+  return { name: docName || 'Plan', items };
+}
