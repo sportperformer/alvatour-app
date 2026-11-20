@@ -640,5 +640,12 @@ a.btn { text-decoration: none; }
 .gpin { width: 22px; height: 22px; border-radius: 50%; background: var(--c); border: 2.5px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.45); display: grid; place-items: center; }
 .gpin.done { opacity: 0.45; }
 .gpin svg { width: 14px; height: 14px; }
+.gme { width: 18px; height: 18px; border-radius: 50%; background: #1a73e8; border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.15), 0 1px 4px rgba(0,0,0,0.4); }
+.gme-btn { width: 44px; height: 44px; margin: 0 10px 10px 0; border: 0; border-radius: 50%; background: #fff; color: #5f6368; box-shadow: 0 1px 4px rgba(0,0,0,0.3); display: grid; place-items: center; cursor: pointer; padding: 0; }
+.gme-btn svg { width: 24px; height: 24px; }
+.gme-btn.on { color: #1a73e8; }
+.gme-btn.busy svg { animation: gme-pulse 1s ease-in-out infinite; }
+@keyframes gme-pulse { 50% { opacity: 0.35; } }
+.plan-dist { margin-left: 8px; font-size: 12px; font-weight: 600; color: #1a73e8; white-space: nowrap; }
 .ginfo { font: 14px/1.4 var(--font-body); color: #1b2833; }
 .ginfo a { color: #1f3a5f; font-weight: 700; }

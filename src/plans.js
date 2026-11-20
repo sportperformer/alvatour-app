@@ -7,6 +7,9 @@ let planOpenId = null;
 let planOnlyTodo = false;
 let planMap = null;          // { map, markers: Map(itemId -> marker), info }
 let planGeocoding = null;    // id planu, dla którego trwa szukanie lokalizacji
+let myPos = null;            // { lat, lng, acc } ostatnia pozycja telefonu (tylko w pamięci, nigdzie nie zapisywana)
+let myWatch = null;          // id navigator.geolocation.watchPosition
+let myFollow = false;        // po kliknięciu "Moja pozycja": wyśrodkuj mapę przy pierwszym odczycie
 
 const plans = () => (Array.isArray(state.plans) ? state.plans : (state.plans = []));
 const planById = (id) => plans().find((p) => p.id === id);
@@ -82,7 +85,7 @@ function renderPlanList(p) {
       <ul class="plan-items">${vis.map((it) => `
         <li class="plan-item ${it.done ? 'done' : ''}" data-item="${esc(it.id)}" style="--c:${esc(it.color)}">
           <label class="plan-check"><input type="checkbox" ${it.done ? 'checked' : ''} aria-label="Byłem: ${esc(it.name)}"><span></span></label>
-          <button type="button" class="plan-name" data-focus="${esc(it.id)}"><b>${esc(it.name)}</b>
+          <button type="button" class="plan-name" data-focus="${esc(it.id)}"><b>${esc(it.name)}<span class="plan-dist" data-dist="${esc(it.id)}"></span></b>
             ${it.desc ? `<span class="plan-desc">${esc(it.desc)}</span>` : ''}
             <span class="muted small">${esc(it.addr)}${it.geo === 'miss' ? ' · nie znalazłem na mapie' : ''}${it.done ? ` · byłem ${esc(D.formatPartial(it.done))}` : ''}</span></button>
           <a class="btn btn-soft plan-nav" href="${esc(navUrl(it))}" target="_blank" rel="noopener">Prowadź</a>
@@ -91,6 +94,7 @@ function renderPlanList(p) {
   }).join('') || '<p class="muted">Wszystko odwiedzone. Brawo!</p>';
   box.querySelectorAll('.plan-item input[type="checkbox"]').forEach((cb) => cb.addEventListener('change', () => togglePlanItem(p, cb.closest('[data-item]').dataset.item, cb.checked)));
   box.querySelectorAll('[data-focus]').forEach((b) => b.addEventListener('click', () => focusPlanItem(p, b.dataset.focus)));
+  updatePlanDistances(p);
 }
 
 /** Pin na mapie po odhaczeniu: półprzezroczysty z ptaszkiem. */
@@ -125,7 +129,7 @@ function togglePlanItem(p, itemId, on) {
 }
 
 /* ---------- Mapa Google ---------- */
-function destroyPlanMap() { planMap = null; }
+function destroyPlanMap() { planMap = null; stopMyLocation(); }
 function markerContent(it) {
   const el = document.createElement('div');
   el.className = 'gpin' + (it.done ? ' done' : '');
@@ -162,8 +166,75 @@ async function drawPlanMap(p) {
     markers.set(it.id, m);
   }
   if (pts.length > 1) map.fitBounds(bounds, 40);
-  planMap = { map, markers, info, gm };
+  planMap = { map, markers, info, gm, me: null, meCircle: null };
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'gme-btn'; btn.id = 'planMe'; btn.title = 'Moja pozycja'; btn.setAttribute('aria-label', 'Pokaż moją pozycję');
+  btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+  btn.addEventListener('click', () => { myFollow = true; if (myPos) showMyPos(true); startMyLocation(); });
+  map.controls[gm.ControlPosition.RIGHT_BOTTOM].push(btn);
+  if (myWatch != null && myPos) showMyPos(false);
 }
+
+/* ---------- Moja pozycja (GPS telefonu, tylko gdy plan jest otwarty; nic nie jest zapisywane) ---------- */
+function startMyLocation() {
+  if (!navigator.geolocation) { toast('Ten telefon nie udostępnia lokalizacji.'); return; }
+  if (myWatch != null) return;
+  const btn = $('planMe'); if (btn) btn.classList.add('busy');
+  let gotFix = false;
+  myWatch = navigator.geolocation.watchPosition((pos) => {
+    if (activeView !== 'plans' || !planOpenId) { stopMyLocation(); return; }
+    gotFix = true;
+    myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy || 0 };
+    const b = $('planMe'); if (b) { b.classList.remove('busy'); b.classList.add('on'); }
+    showMyPos(myFollow); myFollow = false;
+    const cur = planById(planOpenId); if (cur) updatePlanDistances(cur);
+  }, (err) => {
+    const code = err && err.code;
+    // chwilowa utrata sygnału (np. wąska uliczka): zostaje ostatnia pozycja, śledzenie trwa dalej
+    if (gotFix && code !== 1) return;
+    stopMyLocation();
+    const b = $('planMe'); if (b) b.classList.remove('busy', 'on');
+    if (code === 1) toast('Brak zgody na lokalizację. Włącz ją: Ustawienia telefonu → Aplikacje → AlvaTour → Uprawnienia → Lokalizacja → Zezwalaj tylko podczas używania aplikacji.');
+    else toast('Nie mogę ustalić pozycji. Włącz Lokalizację w telefonie (przesuń palcem z góry ekranu → Lokalizacja) i kliknij jeszcze raz.');
+  }, { enableHighAccuracy: true, maximumAge: 10000 });
+}
+function stopMyLocation() {
+  if (myWatch != null && navigator.geolocation) navigator.geolocation.clearWatch(myWatch);
+  myWatch = null;
+}
+function showMyPos(center) {
+  if (!planMap || !myPos) return;
+  const { gm, map } = planMap;
+  const pos = { lat: myPos.lat, lng: myPos.lng };
+  if (!planMap.me) {
+    if (gm.marker && gm.marker.AdvancedMarkerElement) {
+      const el = document.createElement('div'); el.className = 'gme';
+      planMap.me = new gm.marker.AdvancedMarkerElement({ map, position: pos, content: el, title: 'Tu jesteś', zIndex: 999 });
+    } else {
+      planMap.me = new gm.Marker({ map, position: pos, title: 'Tu jesteś', zIndex: 999, icon: { path: gm.SymbolPath.CIRCLE, scale: 8, fillColor: '#1a73e8', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 } });
+    }
+    planMap.meCircle = new gm.Circle({ map, center: pos, radius: myPos.acc, clickable: false, strokeColor: '#1a73e8', strokeOpacity: 0.3, strokeWeight: 1, fillColor: '#1a73e8', fillOpacity: 0.12 });
+  } else {
+    if (planMap.me.setPosition) planMap.me.setPosition(pos); else planMap.me.position = pos;
+    planMap.meCircle.setCenter(pos); planMap.meCircle.setRadius(myPos.acc);
+  }
+  if (center) { map.panTo(pos); if (map.getZoom() < 15) map.setZoom(16); }
+}
+/** Odległość w linii prostej (metry). */
+function distM(a, b) {
+  const R = 6371000, r = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 0).replace('.', ',')} km`);
+function updatePlanDistances(p) {
+  document.querySelectorAll('#planList [data-dist]').forEach((el) => {
+    const it = p.items.find((i) => i.id === el.dataset.dist);
+    el.textContent = myPos && it && it.lat != null && !it.done ? fmtDist(distM(myPos, it)) : '';
+  });
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { stopMyLocation(); const b = $('planMe'); if (b) b.classList.remove('busy', 'on'); } });
 function openPlanInfo(p, it, marker) {
   if (!planMap) return;
   planMap.info.setContent(`<div class="ginfo"><b>${esc(it.name)}</b><br><span>${esc(it.cat)}</span><br><a href="${esc(navUrl(it))}" target="_blank" rel="noopener">Prowadź</a></div>`);

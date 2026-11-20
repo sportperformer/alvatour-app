@@ -107,6 +107,15 @@ describe('Android: udostępnianie do aplikacji i API telefonu', () => {
     expect(m).toMatch(/android:launchMode="singleTask"/);
     expect(read('android/app/src/main/java/pl/sportperformer/alvatour/MainActivity.java')).toMatch(/registerPlugin\(ShareTargetPlugin\.class\)/);
   });
+  it('moja pozycja: lokalizacja tylko "podczas używania" (bez lokalizacji w tle), GPS nie jest wymagany do instalacji', () => {
+    const m = read('android/app/src/main/AndroidManifest.xml');
+    expect(m).toMatch(/android\.permission\.ACCESS_FINE_LOCATION/);
+    expect(m).toMatch(/android\.permission\.ACCESS_COARSE_LOCATION/);
+    expect(m).not.toMatch(/ACCESS_BACKGROUND_LOCATION/);
+    expect(m).toMatch(/android\.hardware\.location\.gps" android:required="false"/);
+    // pozycja nie trafia do stanu (bazy, kopii, eksportu)
+    expect(read('src/plans.js')).not.toMatch(/state\.[a-zA-Z]*\s*=\s*myPos|myPos[^;]*saveNow/);
+  });
   it('aktualizacja w aplikacji: uprawnienie, wtyczka i kontrola podpisu przed instalacją', () => {
     expect(read('android/app/src/main/AndroidManifest.xml')).toMatch(/android\.permission\.REQUEST_INSTALL_PACKAGES/);
     expect(read('android/app/src/main/java/pl/sportperformer/alvatour/MainActivity.java')).toMatch(/registerPlugin\(AppUpdaterPlugin\.class\)/);

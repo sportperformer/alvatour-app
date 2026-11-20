@@ -2,6 +2,12 @@
 
 Każda wersja ma tu sekcję `## <wersja>`. Jej treść trafia do opisu wydania w GitHub Releases.
 
+## 1.2.1
+
+- **Moja pozycja na mapie planu**: przycisk z celownikiem w prawym dolnym rogu mapy pokazuje, gdzie jesteś (niebieska kropka), i śledzi Cię, dopóki plan jest otwarty
+- Przy każdym nieodwiedzonym miejscu na liście **odległość od Ciebie** (np. 350 m, 1,2 km), aktualizowana na bieżąco
+- Za pierwszym razem Android zapyta o zgodę na lokalizację (wybierz „Podczas używania aplikacji”). Pozycja nie jest nigdzie zapisywana ani wysyłana, a śledzenie wyłącza się po wyjściu z planu lub z aplikacji
+
 ## 1.2.0
 
 - **Nowa zakładka „Plany”: plany zwiedzania z Google Moje Mapy.** Wklejasz link do swojej mapy, a AlvaTour pobiera wszystkie piny z kategoriami, kolorami i opisami, sama ustala ich położenie po adresie i pokazuje je na **mapie Google**
