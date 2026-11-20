@@ -10,6 +10,9 @@ let planGeocoding = null;    // id planu, dla którego trwa szukanie lokalizacji
 let myPos = null;            // { lat, lng, acc } ostatnia pozycja telefonu (tylko w pamięci, nigdzie nie zapisywana)
 let myWatch = null;          // id navigator.geolocation.watchPosition
 let myFollow = false;        // po kliknięciu "Moja pozycja": wyśrodkuj mapę przy pierwszym odczycie
+let myStarting = false;      // trwa włączanie lokalizacji (okno systemowe)
+let myWaiters = [];          // czekający na pierwszą pozycję (trasa)
+let planRoute = null;        // { planId, tour, stops: [itemId], res, origin, line } trasa piesza (tylko w pamięci)
 
 const plans = () => (Array.isArray(state.plans) ? state.plans : (state.plans = []));
 const planById = (id) => plans().find((p) => p.id === id);
@@ -49,11 +52,14 @@ function renderPlan(p) {
     </div>
     <p class="plan-note" id="planGeoMsg" hidden></p>
     <div class="plan-map" id="planMap"><p class="muted small">Ładuję mapę…</p></div>
+    <button type="button" class="btn btn-soft plan-tour" id="planTour">${svgIcon('compass', 18)} Trasa po nieodwiedzonych</button>
+    <div class="plan-route" id="planRoute" hidden></div>
     <div id="planList"></div>
     <button type="button" class="link danger-link" id="planDelete">Usuń plan</button>
     <div class="confirm" id="planDelConfirm" hidden><p>Usunąć plan „${esc(p.name)}”? Miejsca, które już odhaczyłeś, zostaną w Twoich miejscach.</p>
       <div class="btn-row"><button type="button" class="btn btn-danger" id="planDelYes">Tak, usuń plan</button><button type="button" class="btn btn-soft" id="planDelNo">Anuluj</button></div></div>`;
   $('planTodo').addEventListener('change', (e) => { planOnlyTodo = e.target.checked; renderPlanList(p); });
+  $('planTour').addEventListener('click', () => routePlan(p, null));
   $('planDelete').addEventListener('click', () => { $('planDelConfirm').hidden = false; });
   $('planDelNo').addEventListener('click', () => { $('planDelConfirm').hidden = true; });
   $('planDelYes').addEventListener('click', () => {
@@ -61,6 +67,7 @@ function renderPlan(p) {
     saveNow(); planOpenId = null; renderPlans(); toast(`Usunięto plan: ${esc(p.name)}`);
   });
   renderPlanList(p);
+  if (planRoute && planRoute.planId === p.id) renderRoutePanel(p); else planRoute = null;
   drawPlanMap(p);
   if (p.items.some((i) => i.geo === 'wait') && planGeocoding !== p.id) geocodePlan(p);
 }
@@ -88,7 +95,7 @@ function renderPlanList(p) {
           <button type="button" class="plan-name" data-focus="${esc(it.id)}"><b>${esc(it.name)}<span class="plan-dist" data-dist="${esc(it.id)}"></span></b>
             ${it.desc ? `<span class="plan-desc">${esc(it.desc)}</span>` : ''}
             <span class="muted small">${esc(it.addr)}${it.geo === 'miss' ? ' · nie znalazłem na mapie' : ''}${it.done ? ` · byłem ${esc(D.formatPartial(it.done))}` : ''}</span></button>
-          <a class="btn btn-soft plan-nav" href="${esc(navUrl(it))}" target="_blank" rel="noopener">Prowadź</a>
+          ${it.lat != null ? `<button type="button" class="btn btn-soft plan-nav" data-route="${esc(it.id)}">Trasa</button>` : `<a class="btn btn-soft plan-nav" href="${esc(navUrl(it))}" target="_blank" rel="noopener">Prowadź</a>`}
         </li>`).join('')}</ul>
     </section>`;
   }).join('') || '<p class="muted">Wszystko odwiedzone. Brawo!</p>';
@@ -129,11 +136,17 @@ function togglePlanItem(p, itemId, on) {
 }
 
 /* ---------- Mapa Google ---------- */
-function destroyPlanMap() { planMap = null; stopMyLocation(); }
+function destroyPlanMap() { planMap = null; planRoute = null; stopMyLocation(); }
+function routeNum(id) {
+  if (!planRoute || !planRoute.tour) return 0;
+  return planRoute.stops.indexOf(id) + 1;
+}
 function markerContent(it) {
   const el = document.createElement('div');
   el.className = 'gpin' + (it.done ? ' done' : '');
   el.style.setProperty('--c', it.color);
+  const n = routeNum(it.id);
+  if (n && !it.done) { el.classList.add('num'); el.textContent = String(n); return el; }
   el.innerHTML = it.done ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4 10-10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '';
   return el;
 }
@@ -173,13 +186,47 @@ async function drawPlanMap(p) {
   btn.addEventListener('click', () => { myFollow = true; if (myPos) showMyPos(true); startMyLocation(); });
   map.controls[gm.ControlPosition.RIGHT_BOTTOM].push(btn);
   if (myWatch != null && myPos) showMyPos(false);
+  if (planRoute && planRoute.planId === p.id) drawRoute(false);
 }
 
 /* ---------- Moja pozycja (GPS telefonu, tylko gdy plan jest otwarty; nic nie jest zapisywane) ---------- */
-function startMyLocation() {
-  if (!navigator.geolocation) { toast('Ten telefon nie udostępnia lokalizacji.'); return; }
-  if (myWatch != null) return;
+function settleMyWaiters(err) {
+  const w = myWaiters; myWaiters = [];
+  w.forEach((x) => (err ? x.fail(err) : x.ok(myPos)));
+}
+function failMyLocation(msg) {
+  const b = $('planMe'); if (b) b.classList.remove('busy', 'on');
+  toast(msg);
+  settleMyWaiters(Object.assign(new Error(msg), { shown: true }));
+}
+/** Pozycja do trasy: ostatnia znana albo czekamy na pierwszy odczyt GPS (włącza lokalizację, gdy trzeba). */
+function needMyPos() {
+  if (myPos && myWatch != null) return Promise.resolve(myPos);
+  return new Promise((ok, fail) => {
+    const w = { ok, fail };
+    myWaiters.push(w);
+    setTimeout(() => {
+      if (!myWaiters.includes(w)) return;
+      myWaiters = myWaiters.filter((x) => x !== w);
+      fail(new Error('Nie udało się ustalić Twojej pozycji w 30 sekund. Wyjdź na zewnątrz i spróbuj jeszcze raz.'));
+    }, 30000);
+    startMyLocation();
+  });
+}
+async function startMyLocation() {
+  if (!navigator.geolocation) { failMyLocation('Ten telefon nie udostępnia lokalizacji.'); return; }
+  if (myWatch != null || myStarting) return;
+  myStarting = true;
   const btn = $('planMe'); if (btn) btn.classList.add('busy');
+  let st = { enabled: true };
+  try { st = await AlvaMaps.ensureLocation(); } catch (e) { /* jak wcześniej: spróbuje GPS */ } finally { myStarting = false; }
+  if (!st.enabled) {
+    failMyLocation(st.how === 'settings'
+      ? 'Włącz Lokalizację na ekranie, który się otworzył, wróć do AlvaTour i kliknij jeszcze raz.'
+      : 'Lokalizacja w telefonie jest wyłączona, więc nie pokażę, gdzie jesteś.');
+    return;
+  }
+  if (activeView !== 'plans' || !planOpenId || myWatch != null) { const b = $('planMe'); if (b && myWatch == null) b.classList.remove('busy'); return; }
   let gotFix = false;
   myWatch = navigator.geolocation.watchPosition((pos) => {
     if (activeView !== 'plans' || !planOpenId) { stopMyLocation(); return; }
@@ -188,19 +235,20 @@ function startMyLocation() {
     const b = $('planMe'); if (b) { b.classList.remove('busy'); b.classList.add('on'); }
     showMyPos(myFollow); myFollow = false;
     const cur = planById(planOpenId); if (cur) updatePlanDistances(cur);
+    settleMyWaiters(null);
   }, (err) => {
     const code = err && err.code;
     // chwilowa utrata sygnału (np. wąska uliczka): zostaje ostatnia pozycja, śledzenie trwa dalej
     if (gotFix && code !== 1) return;
     stopMyLocation();
-    const b = $('planMe'); if (b) b.classList.remove('busy', 'on');
-    if (code === 1) toast('Brak zgody na lokalizację. Włącz ją: Ustawienia telefonu → Aplikacje → AlvaTour → Uprawnienia → Lokalizacja → Zezwalaj tylko podczas używania aplikacji.');
-    else toast('Nie mogę ustalić pozycji. Włącz Lokalizację w telefonie (przesuń palcem z góry ekranu → Lokalizacja) i kliknij jeszcze raz.');
+    if (code === 1) failMyLocation('Brak zgody na lokalizację. Włącz ją: Ustawienia telefonu → Aplikacje → AlvaTour → Uprawnienia → Lokalizacja → Zezwalaj tylko podczas używania aplikacji.');
+    else failMyLocation('Nie mogę ustalić pozycji. Włącz Lokalizację w telefonie (przesuń palcem z góry ekranu → Lokalizacja) i kliknij jeszcze raz.');
   }, { enableHighAccuracy: true, maximumAge: 10000 });
 }
 function stopMyLocation() {
   if (myWatch != null && navigator.geolocation) navigator.geolocation.clearWatch(myWatch);
   myWatch = null;
+  settleMyWaiters(Object.assign(new Error('stop'), { shown: true }));
 }
 function showMyPos(center) {
   if (!planMap || !myPos) return;
@@ -220,13 +268,7 @@ function showMyPos(center) {
   }
   if (center) { map.panTo(pos); if (map.getZoom() < 15) map.setZoom(16); }
 }
-/** Odległość w linii prostej (metry). */
-function distM(a, b) {
-  const R = 6371000, r = Math.PI / 180;
-  const dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
+const distM = (a, b) => AlvaMaps.distM(a, b);
 const fmtDist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 0).replace('.', ',')} km`);
 function updatePlanDistances(p) {
   document.querySelectorAll('#planList [data-dist]').forEach((el) => {
@@ -237,7 +279,7 @@ function updatePlanDistances(p) {
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { stopMyLocation(); const b = $('planMe'); if (b) b.classList.remove('busy', 'on'); } });
 function openPlanInfo(p, it, marker) {
   if (!planMap) return;
-  planMap.info.setContent(`<div class="ginfo"><b>${esc(it.name)}</b><br><span>${esc(it.cat)}</span><br><a href="${esc(navUrl(it))}" target="_blank" rel="noopener">Prowadź</a></div>`);
+  planMap.info.setContent(`<div class="ginfo"><b>${esc(it.name)}</b><br><span>${esc(it.cat)}</span><br>${it.lat != null ? `<button type="button" class="ginfo-route" data-route="${esc(it.id)}">Trasa</button>` : `<a href="${esc(navUrl(it))}" target="_blank" rel="noopener">Prowadź</a>`}</div>`);
   planMap.info.open({ map: planMap.map, anchor: marker });
   const row = document.querySelector(`.plan-item[data-item="${CSS.escape(it.id)}"]`);
   if (row) { row.classList.add('hl'); setTimeout(() => row.classList.remove('hl'), 1600); }
@@ -282,6 +324,100 @@ async function geocodePlan(p) {
 }
 
 /* ---------- Dodawanie planu ---------- */
+/* ---------- Trasa piesza w AlvaTour (OpenStreetMap), bez przechodzenia do Google Maps ---------- */
+const fmtDur = (sec) => { const m = Math.max(1, Math.round(sec / 60)); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim(); };
+const FAR_M = 30000; // dalej niż 30 km od miejsc: trasa piesza od Ciebie nie ma sensu
+
+/** itemIds: jedno miejsce albo null = wszystkie nieodwiedzone (kolejność od najbliższego). */
+async function routePlan(p, itemIds) {
+  const tour = !itemIds;
+  let stops = (tour ? p.items.filter((i) => !i.done) : itemIds.map((id) => p.items.find((i) => i.id === id))).filter((i) => i && i.lat != null);
+  if (!stops.length) { toast(tour ? 'Nie ma nieodwiedzonych miejsc z położeniem na mapie.' : 'To miejsce nie ma jeszcze położenia na mapie.'); return; }
+  setRoutePanel('<p class="muted small">Ustalam, gdzie jesteś…</p>');
+  let pos;
+  try { pos = await needMyPos(); } catch (e) { if (!e.shown) toast(esc(e.message)); if (planOpenId === p.id) closeRoute(); return; }
+  if (planOpenId !== p.id) return;
+  let origin = { lat: pos.lat, lng: pos.lng }, note = '';
+  const nearest = Math.min(...stops.map((s) => distM(origin, s)));
+  if (nearest > FAR_M) {
+    if (!tour) { setRoutePanel(`<p class="route-err">Jesteś ${fmtDist(nearest)} od tego miejsca. Trasa piesza zadziała na miejscu.</p>${routeButtons(null)}`); return; }
+    // podgląd trasy przed wyjazdem: start z pierwszego miejsca planu (zwykle "Baza", czyli nocleg)
+    origin = { lat: stops[0].lat, lng: stops[0].lng };
+    note = `Jesteś daleko (${fmtDist(nearest)}), więc trasa startuje z miejsca „${esc(stops[0].name)}”.`;
+    stops = stops.slice(1);
+    if (!stops.length) { closeRoute(); return; }
+  }
+  if (tour) stops = AlvaMaps.tourOrder(origin, stops);
+  setRoutePanel(`<p class="muted small">Wyznaczam trasę pieszą${tour ? ` przez ${stops.length} ${plural(stops.length, ['miejsce', 'miejsca', 'miejsc'])}` : ''}…</p>`);
+  let res;
+  try { res = await AlvaMaps.walkRoute([origin, ...stops], stops.map((s) => s.name)); } catch (e) {
+    if (planOpenId === p.id) setRoutePanel(`<p class="route-err">${esc(e.message || e)}</p>${routeButtons(AlvaMaps.googleDirUrl(origin, stops))}`);
+    return;
+  }
+  if (planOpenId !== p.id) return;
+  clearRouteLine();
+  planRoute = { planId: p.id, tour, stops: stops.map((s) => s.id), res, origin, note };
+  renderRoutePanel(p);
+  drawRoute(true);
+  refreshRouteMarkers(p);
+}
+function routeButtons(gUrl) {
+  return `<div class="route-btns">${gUrl ? `<a class="btn btn-soft" href="${esc(gUrl)}" target="_blank" rel="noopener">Otwórz w Google Maps</a>` : ''}<button type="button" class="btn btn-soft" data-route-close>Zamknij</button></div>`;
+}
+function setRoutePanel(html) {
+  const box = $('planRoute'); if (!box) return;
+  box.hidden = false; box.innerHTML = html;
+  box.querySelectorAll('[data-route-close]').forEach((b) => b.addEventListener('click', closeRoute));
+}
+function renderRoutePanel(p) {
+  const r = planRoute; if (!r) return;
+  const items = r.stops.map((id) => p.items.find((i) => i.id === id)).filter(Boolean);
+  const last = items[items.length - 1];
+  const steps = r.res.legs.flatMap((l) => l.steps);
+  setRoutePanel(`
+    <div class="route-head"><b>Pieszo ${fmtDur(r.res.duration)} · ${fmtDist(r.res.distance)}</b>
+      <span class="muted small">${r.tour ? `${items.length} ${plural(items.length, ['miejsce', 'miejsca', 'miejsc'])}, zawsze do najbliższego` : `do: ${esc(last ? last.name : '')}`}</span></div>
+    ${r.note ? `<p class="muted small">${r.note}</p>` : ''}
+    ${r.tour ? `<ol class="route-stops">${items.map((it, i) => { const l = r.res.legs[i] || {}; return `<li class="${it.done ? 'done' : ''}"><button type="button" class="link" data-focus="${esc(it.id)}">${esc(it.name)}</button> <span class="muted small">${fmtDur(l.duration || 0)} · ${fmtDist(l.distance || 0)}</span></li>`; }).join('')}</ol>` : ''}
+    <details class="route-steps"><summary>Wskazówki krok po kroku (${steps.length})</summary>
+      <ol>${steps.map((st) => `<li>${esc(st.text)}${st.distance >= 5 ? ` <span class="muted small">${fmtDist(st.distance)}</span>` : ''}</li>`).join('')}</ol></details>
+    <div class="route-btns">
+      <button type="button" class="btn btn-soft" id="routeAgain">Przelicz od miejsca, gdzie jestem</button>
+      <a class="btn btn-soft" href="${esc(AlvaMaps.googleDirUrl(r.origin, items))}" target="_blank" rel="noopener">Google Maps</a>
+      <button type="button" class="btn btn-soft" data-route-close>Zakończ trasę</button>
+    </div>
+    <p class="muted tiny">Trasa: © OpenStreetMap (FOSSGIS). Czas przy spokojnym marszu.</p>`);
+  $('planRoute').querySelectorAll('[data-focus]').forEach((b) => b.addEventListener('click', () => focusPlanItem(p, b.dataset.focus)));
+  $('routeAgain').addEventListener('click', () => routePlan(p, r.tour ? null : r.stops));
+}
+function clearRouteLine() { if (planRoute && planRoute.line) { planRoute.line.setMap(null); planRoute.line = null; } }
+function drawRoute(fit) {
+  if (!planMap || !planRoute) return;
+  const { gm, map } = planMap;
+  clearRouteLine();
+  planRoute.line = new gm.Polyline({ map, path: planRoute.res.path, strokeColor: '#1a73e8', strokeOpacity: 0.85, strokeWeight: 5, clickable: false, zIndex: 50 });
+  if (fit && planRoute.res.path.length) {
+    const b = new gm.LatLngBounds();
+    planRoute.res.path.forEach((pt) => b.extend(pt));
+    map.fitBounds(b, 40);
+    $('planMap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+function refreshRouteMarkers(p) { p.items.forEach((it) => updatePlanMarker(it)); }
+function closeRoute() {
+  const p = planById(planOpenId);
+  clearRouteLine();
+  planRoute = null;
+  const box = $('planRoute'); if (box) { box.hidden = true; box.innerHTML = ''; }
+  if (p) refreshRouteMarkers(p);
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('[data-route]');
+  if (!b || !planOpenId) return;
+  const p = planById(planOpenId);
+  if (p) { if (planMap) planMap.info.close(); routePlan(p, [b.dataset.route]); }
+});
+
 function openPlanImport() {
   openModal(`<div class="dlg">
     <div class="share-head"><h2>Nowy plan zwiedzania</h2><button type="button" class="btn-ghost icon-only" data-x aria-label="Zamknij"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>

@@ -113,6 +113,8 @@ describe('Android: udostępnianie do aplikacji i API telefonu', () => {
     expect(m).toMatch(/android\.permission\.ACCESS_COARSE_LOCATION/);
     expect(m).not.toMatch(/ACCESS_BACKGROUND_LOCATION/);
     expect(m).toMatch(/android\.hardware\.location\.gps" android:required="false"/);
+    expect(read('android/app/src/main/java/pl/sportperformer/alvatour/MainActivity.java')).toMatch(/registerPlugin\(LocationSettingsPlugin\.class\)/);
+    expect(read('android/app/src/main/java/pl/sportperformer/alvatour/LocationSettingsPlugin.java')).toMatch(/ResolvableApiException/);
     // pozycja nie trafia do stanu (bazy, kopii, eksportu)
     expect(read('src/plans.js')).not.toMatch(/state\.[a-zA-Z]*\s*=\s*myPos|myPos[^;]*saveNow/);
   });

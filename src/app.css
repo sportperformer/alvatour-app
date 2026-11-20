@@ -649,3 +649,20 @@ a.btn { text-decoration: none; }
 .plan-dist { margin-left: 8px; font-size: 12px; font-weight: 600; color: #1a73e8; white-space: nowrap; }
 .ginfo { font: 14px/1.4 var(--font-body); color: #1b2833; }
 .ginfo a { color: #1f3a5f; font-weight: 700; }
+
+/* Trasa piesza w planie */
+.plan-tour { display: inline-flex; align-items: center; gap: 8px; width: 100%; justify-content: center; margin: -4px 0 12px; }
+.plan-route { border: 1px solid var(--line); border-left: 4px solid #1a73e8; border-radius: 14px; background: var(--panel); padding: 12px 14px; margin-bottom: 14px; display: grid; gap: 10px; }
+.plan-route .route-head { display: grid; gap: 2px; }
+.plan-route .route-head b { font-size: 16px; }
+.route-err { margin: 0; color: var(--danger, #c62828); font-size: 14px; }
+.route-stops { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
+.route-stops li.done { opacity: 0.5; }
+.route-stops .link { display: inline; font-size: 14px; }
+.route-steps summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--accent); }
+.route-steps ol { margin: 8px 0 0; padding-left: 22px; display: grid; gap: 6px; font-size: 14px; }
+.route-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.route-btns .btn { flex: 1 1 auto; text-align: center; }
+.plan-route .tiny { font-size: 11px; }
+.gpin.num { width: 24px; height: 24px; color: #fff; font: 700 12px/1 system-ui, sans-serif; text-shadow: 0 0 2px rgba(0,0,0,0.6); }
+.ginfo-route { margin-top: 6px; padding: 4px 12px; border: 0; border-radius: 999px; background: #1a73e8; color: #fff; font-weight: 600; font-size: 13px; }

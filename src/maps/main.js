@@ -1,9 +1,11 @@
 // Mapa Google i import z Google Moje Mapy dla "Planów zwiedzania" (bundlowane do www/maps.js jako window.AlvaMaps).
 
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { Capacitor, CapacitorHttp, registerPlugin } from '@capacitor/core';
 import { myMapsId, myMapsKmlUrl, parseKml } from '../native/parsers.js';
+import { routeUrl, parseRoute, tourOrder, distM, googleDirUrl, MAX_STOPS } from './route.js';
 
 const isNative = Capacitor.isNativePlatform();
+const LocationSettings = registerPlugin('LocationSettings');
 // Klucz Google Maps (JavaScript API) wstawiany przy buildzie z GitHub Secrets (ALVATOUR_MAPS_KEY); nie ma go w repozytorium.
 // Zabezpieczenie po stronie Google: tylko witryna https://localhost/* (czyli ta aplikacja) i tylko interfejsy map.
 const MAPS_KEY = '__ALVATOUR_MAPS_KEY__';
@@ -20,7 +22,34 @@ async function fetchText(url) {
   return r.text();
 }
 
+async function fetchJSON(url) {
+  if (isNative) {
+    const r = await CapacitorHttp.request({ url, method: 'GET', headers: { Accept: 'application/json', 'User-Agent': 'AlvaTour/1.2 (Android; prywatna aplikacja podróżnicza)' }, connectTimeout: 15000, readTimeout: 20000, responseType: 'json' });
+    const data = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+    if ((r.status < 200 || r.status >= 300) && !(data && data.code)) throw new Error('Serwer odpowiedział kodem ' + r.status);
+    return data;
+  }
+  const r = await fetch(url, { headers: { Accept: 'application/json' } });
+  const data = await r.json().catch(() => null);
+  if (!r.ok && !(data && data.code)) throw new Error('Serwer odpowiedział kodem ' + r.status);
+  return data;
+}
+
 const AlvaMaps = {
+  /** Trasa piesza: points [{lat,lng}...] (start, przystanki, cel), stopNames: nazwy celów kolejnych odcinków. */
+  async walkRoute(points, stopNames = []) {
+    let json;
+    try { json = await fetchJSON(routeUrl(points)); } catch (e) { throw new Error('Nie udało się pobrać trasy. Sprawdź internet. (' + ((e && e.message) || e) + ')'); }
+    return parseRoute(json, stopNames);
+  },
+  tourOrder, distM, googleDirUrl, MAX_STOPS,
+
+  /** Lokalizacja w telefonie: gdy wyłączona, systemowe okno "Włączyć lokalizację?". { enabled, how }. */
+  async ensureLocation() {
+    if (!isNative) return { enabled: true, how: 'web' };
+    try { return await LocationSettings.ensureEnabled(); } catch (e) { return { enabled: true, how: 'unknown' }; }
+  },
+
   hasKey: () => !!MAPS_KEY && !MAPS_KEY.startsWith('__'),
   myMapsId,
 
