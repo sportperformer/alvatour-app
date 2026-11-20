@@ -7,6 +7,10 @@ Każda wersja ma tu sekcję `## <wersja>`. Jej treść trafia do opisu wydania w
 - **Moja pozycja na mapie planu**: przycisk z celownikiem w prawym dolnym rogu mapy pokazuje, gdzie jesteś (niebieska kropka), i śledzi Cię, dopóki plan jest otwarty
 - Przy każdym nieodwiedzonym miejscu na liście **odległość od Ciebie** (np. 350 m, 1,2 km), aktualizowana na bieżąco
 - Za pierwszym razem Android zapyta o zgodę na lokalizację (wybierz „Podczas używania aplikacji”). Pozycja nie jest nigdzie zapisywana ani wysyłana, a śledzenie wyłącza się po wyjściu z planu lub z aplikacji
+- **Gdy lokalizacja w telefonie jest wyłączona**, AlvaTour sam pokazuje okno Androida „Włączyć lokalizację?”: wystarczy kliknąć OK
+- **Trasa piesza w AlvaTour, bez przechodzenia do Google Maps**: przycisk „Trasa” przy miejscu (i w dymku na mapie) rysuje na mapie trasę od Ciebie do tego miejsca, z czasem dojścia, odległością i wskazówkami krok po kroku po polsku
+- **Trasa po nieodwiedzonych**: jedna trasa przez wszystkie jeszcze nieodwiedzone miejsca, zawsze do najbliższego następnego; piny dostają numery kolejności. Gdy jesteś daleko (np. jeszcze w Polsce), trasa startuje z pierwszego miejsca planu (np. noclegu), żeby można ją było obejrzeć przed wyjazdem
+- „Przelicz od miejsca, gdzie jestem” odświeża trasę w trakcie zwiedzania; „Google Maps” otwiera tę samą trasę w Google Maps, gdyby była potrzebna nawigacja głosowa. Trasy liczy OpenStreetMap (bez dodatkowych ustawień i kosztów)
 
 ## 1.2.0
 

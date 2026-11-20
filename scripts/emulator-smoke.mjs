@@ -193,6 +193,8 @@ const planDone = await page.evaluate(() => ({ done: state.plans[0].items[0].done
 check(!!planDone.done && planDone.places === 1, 'plany: odhaczenie zapisuje miejsce', JSON.stringify(planDone));
 
 // 5d. moja pozycja na mapie planu (GPS emulatora ustawiony na Rygę)
+const locPlugin = await page.evaluate(() => window.Capacitor.isPluginAvailable('LocationSettings'));
+check(locPlugin === true, 'moja pozycja: wtyczka włączania lokalizacji jest w aplikacji', String(locPlugin));
 const perms = sh(`dumpsys package ${PKG} | grep -E "ACCESS_(FINE|COARSE)_LOCATION" || true`);
 check(/ACCESS_FINE_LOCATION/.test(perms) && /ACCESS_COARSE_LOCATION/.test(perms), 'moja pozycja: aplikacja ma uprawnienie do lokalizacji', perms.trim().slice(0, 160));
 if (hasKey && await page.locator('#planMe').count()) {
@@ -204,6 +206,13 @@ if (hasKey && await page.locator('#planMe').count()) {
     .then((h) => h.jsonValue()).catch(() => '');
   // GPS w emulatorze bywa kapryśny: brak pozycji tylko odnotowujemy, nie blokuje wydania
   console.log(me ? `OK   moja pozycja: niebieska kropka na mapie, odległość ${me}` : 'UWAGA moja pozycja: emulator nie podał pozycji GPS w 30 s (nie blokuje)');
+  // trasa piesza w aplikacji (serwer tras OpenStreetMap: zewnętrzny, więc wynik tylko odnotowujemy)
+  if (me) {
+    await page.locator('[data-route="plt-1"]').first().click();
+    const rt = await page.waitForFunction(() => { const h = document.querySelector('#planRoute .route-head'); const e = document.querySelector('#planRoute .route-err'); return h ? 'OK:' + h.innerText.replace(/\n/g, ' ') : e ? 'ERR:' + e.innerText : false; }, null, { timeout: 30000 })
+      .then((h) => h.jsonValue()).catch(() => 'brak odpowiedzi w 30 s');
+    console.log(rt.startsWith('OK:') ? `OK   trasa piesza w aplikacji: ${rt.slice(3)}` : `UWAGA trasa piesza: ${rt} (nie blokuje)`);
+  }
 }
 
 // 6. brak awarii
