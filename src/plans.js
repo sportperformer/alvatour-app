@@ -12,6 +12,7 @@ let myWatch = null;          // id navigator.geolocation.watchPosition
 let myFollow = false;        // po kliknięciu "Moja pozycja": wyśrodkuj mapę przy pierwszym odczycie
 let myStarting = false;      // trwa włączanie lokalizacji (okno systemowe)
 let myWaiters = [];          // czekający na pierwszą pozycję (trasa)
+let planOpen = new Set();   // rozwinięte szczegóły miejsc na liście (tylko w pamięci)
 let planRoute = null;        // { planId, tour, stops: [itemId], res, origin, line } trasa piesza (tylko w pamięci)
 
 const plans = () => (Array.isArray(state.plans) ? state.plans : (state.plans = []));
@@ -90,17 +91,30 @@ function renderPlanList(p) {
     return `<section class="plan-group">
       <h3><span class="plan-dot" style="--c:${esc(items[0].color)}"></span>${esc(cat)} <span class="muted small">${items.filter((i) => i.done).length} / ${items.length}</span></h3>
       <ul class="plan-items">${vis.map((it) => `
-        <li class="plan-item ${it.done ? 'done' : ''}" data-item="${esc(it.id)}" style="--c:${esc(it.color)}">
+        <li class="plan-item ${it.done ? 'done' : ''} ${planOpen.has(it.id) ? 'open' : ''}" data-item="${esc(it.id)}" style="--c:${esc(it.color)}">
           <label class="plan-check"><input type="checkbox" ${it.done ? 'checked' : ''} aria-label="Byłem: ${esc(it.name)}"><span></span></label>
-          <button type="button" class="plan-name" data-focus="${esc(it.id)}"><b>${esc(it.name)}<span class="plan-dist" data-dist="${esc(it.id)}"></span></b>
+          <button type="button" class="plan-name" data-open="${esc(it.id)}" aria-expanded="${planOpen.has(it.id)}"><b>${esc(it.name)}<span class="plan-dist" data-dist="${esc(it.id)}"></span></b>
             ${it.desc ? `<span class="plan-desc">${esc(it.desc)}</span>` : ''}
             <span class="muted small">${esc(it.addr)}${it.geo === 'miss' ? ' · nie znalazłem na mapie' : ''}${it.done ? ` · byłem ${esc(D.formatPartial(it.done))}` : ''}</span></button>
           ${it.lat != null ? `<button type="button" class="btn btn-soft plan-nav" data-route="${esc(it.id)}">Trasa</button>` : `<a class="btn btn-soft plan-nav" href="${esc(navUrl(it))}" target="_blank" rel="noopener">Prowadź</a>`}
+          <div class="plan-extra">
+            <span class="muted small">${esc(it.cat || 'Inne')}${it.layer && it.layer !== it.cat ? ` · ${esc(it.layer)}` : ''}</span>
+            <div class="plan-extra-btns">
+              ${it.lat != null ? `<button type="button" class="btn btn-soft plan-nav" data-focus="${esc(it.id)}">Pokaż na mapie</button>` : ''}
+              <a class="btn btn-soft plan-nav" href="${esc(navUrl(it))}" target="_blank" rel="noopener">Google Maps</a>
+            </div>
+          </div>
         </li>`).join('')}</ul>
     </section>`;
   }).join('') || '<p class="muted">Wszystko odwiedzone. Brawo!</p>';
   box.querySelectorAll('.plan-item input[type="checkbox"]').forEach((cb) => cb.addEventListener('change', () => togglePlanItem(p, cb.closest('[data-item]').dataset.item, cb.checked)));
   box.querySelectorAll('[data-focus]').forEach((b) => b.addEventListener('click', () => focusPlanItem(p, b.dataset.focus)));
+  box.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => {
+    const id = b.dataset.open, li = b.closest('.plan-item');
+    if (planOpen.has(id)) planOpen.delete(id); else planOpen.add(id);
+    li.classList.toggle('open', planOpen.has(id));
+    b.setAttribute('aria-expanded', String(planOpen.has(id)));
+  }));
   updatePlanDistances(p);
 }
 
