@@ -48,6 +48,10 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Moja pozycja na mapie planu zwiedzania (tylko gdy użytkownik kliknie przycisk; nic nie jest zapisywane) -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <!-- Aktualizacja z poziomu aplikacji (pobrany APK -> systemowe okno "Aktualizuj"). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Tylko stare Androidy (do 10): zapis kopii w folderze Documents. Od Androida 11 zgoda nie jest potrzebna. -->

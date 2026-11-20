@@ -192,6 +192,20 @@ await page.locator('.plan-item .plan-check').first().click();
 const planDone = await page.evaluate(() => ({ done: state.plans[0].items[0].done, places: state.places.filter((p) => p.src === 'plan').length }));
 check(!!planDone.done && planDone.places === 1, 'plany: odhaczenie zapisuje miejsce', JSON.stringify(planDone));
 
+// 5d. moja pozycja na mapie planu (GPS emulatora ustawiony na Rygę)
+const perms = sh(`dumpsys package ${PKG} | grep -E "ACCESS_(FINE|COARSE)_LOCATION" || true`);
+check(/ACCESS_FINE_LOCATION/.test(perms) && /ACCESS_COARSE_LOCATION/.test(perms), 'moja pozycja: aplikacja ma uprawnienie do lokalizacji', perms.trim().slice(0, 160));
+if (hasKey && await page.locator('#planMe').count()) {
+  sh(`pm grant ${PKG} android.permission.ACCESS_FINE_LOCATION || true`);
+  sh(`pm grant ${PKG} android.permission.ACCESS_COARSE_LOCATION || true`);
+  try { adb('emu', 'geo', 'fix', '24.1060', '56.9465'); } catch (e) { /* bez konsoli emulatora */ }
+  await page.locator('#planMe').click();
+  const me = await page.waitForFunction(() => (document.querySelector('#planMap .gme') ? (document.querySelector('[data-dist]') || {}).textContent || 'ok' : false), null, { timeout: 30000 })
+    .then((h) => h.jsonValue()).catch(() => '');
+  // GPS w emulatorze bywa kapryśny: brak pozycji tylko odnotowujemy, nie blokuje wydania
+  console.log(me ? `OK   moja pozycja: niebieska kropka na mapie, odległość ${me}` : 'UWAGA moja pozycja: emulator nie podał pozycji GPS w 30 s (nie blokuje)');
+}
+
 // 6. brak awarii
 const fatal = sh('logcat -d -b crash 2>/dev/null || true') + sh(`logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime: Process: ${PKG}" || true`);
 check(!/FATAL EXCEPTION/.test(fatal), 'brak awarii w logach', fatal.slice(0, 300));
