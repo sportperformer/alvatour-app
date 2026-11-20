@@ -2,6 +2,10 @@
 
 Każda wersja ma tu sekcję `## <wersja>`. Jej treść trafia do opisu wydania w GitHub Releases.
 
+## 1.2.2
+
+- **Poprawka: pełny opis miejsca w planie.** Kliknięcie nazwy miejsca na liście rozwija szczegóły: cały opis, kategorię oraz przyciski „Pokaż na mapie” i „Google Maps”. Ponowne kliknięcie zwija. Strzałka przy nazwie pokazuje, że można rozwinąć
+
 ## 1.2.1
 
 - **Moja pozycja na mapie planu**: przycisk z celownikiem w prawym dolnym rogu mapy pokazuje, gdzie jesteś (niebieska kropka), i śledzi Cię, dopóki plan jest otwarty
