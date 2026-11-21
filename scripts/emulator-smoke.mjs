@@ -19,7 +19,11 @@ const PREV_APK = process.argv[3] || '';
 if (!APK) throw new Error('Podaj ścieżkę do APK DEV');
 const DOCS = '/sdcard/Documents/AlvaTour-DEV/kopie';
 
-const adb = (...args) => execFileSync('adb', args, { encoding: 'utf8' }).trim();
+// Każde polecenie adb ma limit czasu: zamrożony emulator ma zakończyć test błędem po minutach, a nie wisieć do limitu zadania.
+const adb = (...args) => execFileSync('adb', args, { encoding: 'utf8', timeout: args[0] === 'install' ? 240000 : 90000 }).trim();
+// Cały test: zwykle ok. 3 minuty. Po 15 minutach kończymy z błędem i opisem (emulator się zawiesił).
+// unref: licznik nie trzyma procesu przy życiu po udanym teście
+setTimeout(() => { console.error('BŁĄD test na emulatorze trwa ponad 15 minut: emulator przestał odpowiadać.'); process.exit(1); }, 15 * 60 * 1000).unref();
 const sh = (cmd) => adb('shell', cmd);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failures = 0;
