@@ -63,7 +63,9 @@ function renderPlan(p) {
   $('planTour').addEventListener('click', () => routePlan(p, null));
   $('planDelete').addEventListener('click', () => { $('planDelConfirm').hidden = false; });
   $('planDelNo').addEventListener('click', () => { $('planDelConfirm').hidden = true; });
-  $('planDelYes').addEventListener('click', () => {
+  $('planDelYes').addEventListener('click', async () => {
+    $('planDelYes').disabled = true;
+    try { await AlvaData.backupNow(); } catch (e) { /* kopia godzinowa i tak istnieje */ }
     state.plans = plans().filter((x) => x.id !== p.id);
     saveNow(); planOpenId = null; renderPlans(); toast(`Usunięto plan: ${esc(p.name)}`);
   });
@@ -103,12 +105,20 @@ function renderPlanList(p) {
               ${it.lat != null ? `<button type="button" class="btn btn-soft plan-nav" data-focus="${esc(it.id)}">Pokaż na mapie</button>` : ''}
               <a class="btn btn-soft plan-nav" href="${esc(navUrl(it))}" target="_blank" rel="noopener">Google Maps</a>
             </div>
+            <button type="button" class="link danger-link plan-del" data-del="${esc(it.id)}">Usuń z planu</button>
+            <div class="confirm" data-delconf="${esc(it.id)}" hidden><p>Usunąć „${esc(it.name)}” z tego planu?${it.done ? ' Zostanie w Twoich miejscach, bo już tam byłeś.' : ''}</p>
+              <div class="btn-row"><button type="button" class="btn btn-danger" data-delyes="${esc(it.id)}">Tak, usuń</button><button type="button" class="btn btn-soft" data-delno="${esc(it.id)}">Anuluj</button></div></div>
           </div>
         </li>`).join('')}</ul>
     </section>`;
-  }).join('') || '<p class="muted">Wszystko odwiedzone. Brawo!</p>';
+  }).join('') + `<button type="button" class="add-btn plan-add-item" id="planAddItem">${ICON_PLUS} Dodaj miejsce do planu</button>`;
+  if (planOnlyTodo && !p.items.some(shown)) box.insertAdjacentHTML('afterbegin', '<p class="muted">Wszystko odwiedzone. Brawo!</p>');
   box.querySelectorAll('.plan-item input[type="checkbox"]').forEach((cb) => cb.addEventListener('change', () => togglePlanItem(p, cb.closest('[data-item]').dataset.item, cb.checked)));
   box.querySelectorAll('[data-focus]').forEach((b) => b.addEventListener('click', () => focusPlanItem(p, b.dataset.focus)));
+  $('planAddItem').addEventListener('click', () => openPlanAddItem(p));
+  box.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { box.querySelector(`[data-delconf="${b.dataset.del}"]`).hidden = false; b.hidden = true; }));
+  box.querySelectorAll('[data-delno]').forEach((b) => b.addEventListener('click', () => { box.querySelector(`[data-delconf="${b.dataset.delno}"]`).hidden = true; box.querySelector(`[data-del="${b.dataset.delno}"]`).hidden = false; }));
+  box.querySelectorAll('[data-delyes]').forEach((b) => b.addEventListener('click', () => { b.disabled = true; removePlanItem(p, b.dataset.delyes); }));
   box.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => {
     const id = b.dataset.open, li = b.closest('.plan-item');
     if (planOpen.has(id)) planOpen.delete(id); else planOpen.add(id);
@@ -180,17 +190,8 @@ async function drawPlanMap(p) {
   const markers = new Map();
   const bounds = new gm.LatLngBounds();
   for (const it of pts) {
-    const pos = { lat: it.lat, lng: it.lng };
-    bounds.extend(pos);
-    let m;
-    if (gm.marker && gm.marker.AdvancedMarkerElement) {
-      m = new gm.marker.AdvancedMarkerElement({ map, position: pos, content: markerContent(it), title: it.name });
-      m.addListener('click', () => openPlanInfo(p, it, m));
-    } else {
-      m = new gm.Marker({ map, position: pos, title: it.name, opacity: it.done ? 0.4 : 1, icon: { path: gm.SymbolPath.CIRCLE, scale: 9, fillColor: it.color, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 } });
-      m.addListener('click', () => openPlanInfo(p, it, m));
-    }
-    markers.set(it.id, m);
+    bounds.extend({ lat: it.lat, lng: it.lng });
+    markers.set(it.id, makePlanMarker(gm, map, p, it));
   }
   if (pts.length > 1) map.fitBounds(bounds, 40);
   planMap = { map, markers, info, gm, me: null, meCircle: null };
@@ -201,6 +202,28 @@ async function drawPlanMap(p) {
   map.controls[gm.ControlPosition.RIGHT_BOTTOM].push(btn);
   if (myWatch != null && myPos) showMyPos(false);
   if (planRoute && planRoute.planId === p.id) drawRoute(false);
+}
+
+function makePlanMarker(gm, map, p, it) {
+  const pos = { lat: it.lat, lng: it.lng };
+  let m;
+  if (gm.marker && gm.marker.AdvancedMarkerElement) {
+    m = new gm.marker.AdvancedMarkerElement({ map, position: pos, content: markerContent(it), title: it.name });
+  } else {
+    m = new gm.Marker({ map, position: pos, title: it.name, opacity: it.done ? 0.4 : 1, icon: { path: gm.SymbolPath.CIRCLE, scale: 9, fillColor: it.color, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 } });
+  }
+  m.addListener('click', () => openPlanInfo(p, it, m));
+  return m;
+}
+function addPlanMarker(p, it) {
+  if (!planMap || it.lat == null || planMap.markers.has(it.id)) return;
+  planMap.markers.set(it.id, makePlanMarker(planMap.gm, planMap.map, p, it));
+}
+function removePlanMarker(id) {
+  const m = planMap && planMap.markers.get(id);
+  if (!m) return;
+  if (m.setMap) m.setMap(null); else m.map = null;
+  planMap.markers.delete(id);
 }
 
 /* ---------- Moja pozycja (GPS telefonu, tylko gdy plan jest otwarty; nic nie jest zapisywane) ---------- */
@@ -432,6 +455,144 @@ document.addEventListener('click', (e) => {
   if (p) { if (planMap) planMap.info.close(); routePlan(p, [b.dataset.route]); }
 });
 
+/* ---------- Dodawanie i usuwanie miejsc w planie ---------- */
+const PLAN_COLORS = ['#1a73e8', '#e65100', '#c2185b', '#2e7d32', '#6a1b9a', '#00838f', '#f9a825', '#5d4037'];
+function planCats(p) {
+  const m = new Map();
+  for (const it of p.items) { const k = it.cat || 'Inne'; if (!m.has(k)) m.set(k, it.color); }
+  return m;
+}
+
+/** Usunięcie miejsca z planu: po potwierdzeniu, kopia zapasowa tuż przed, z możliwością cofnięcia. */
+async function removePlanItem(p, itemId) {
+  const idx = p.items.findIndex((x) => x.id === itemId);
+  if (idx < 0) return;
+  try { await AlvaData.backupNow(); } catch (e) { /* kopia godzinowa i tak istnieje; usunięcie można cofnąć */ }
+  const it = p.items[idx];
+  p.items.splice(idx, 1);
+  if (!it.manual) p.removed = [...new Set([...(p.removed || []), it.name])];
+  planOpen.delete(it.id);
+  saveNow();
+  removePlanMarker(it.id);
+  if (planRoute && planRoute.stops.includes(it.id)) closeRoute();
+  if (planOpenId === p.id && $('planList')) renderPlanList(p);
+  const tid = 'undo' + Date.now().toString(36);
+  toast(`Usunięto z planu: <b>${esc(it.name)}</b> <button type="button" class="toast-undo" id="${tid}">Cofnij</button>`, { ttl: 7000 });
+  const u = $(tid);
+  if (u) u.addEventListener('click', () => {
+    if (p.items.some((x) => x.id === it.id) || !plans().includes(p)) return;
+    p.items.splice(Math.min(idx, p.items.length), 0, it);
+    if (p.removed) p.removed = p.removed.filter((n) => n !== it.name);
+    saveNow();
+    if (planOpenId === p.id && $('planList')) { renderPlanList(p); addPlanMarker(p, it); }
+    const t = u.closest('.toast'); if (t) t.remove();
+    toast(`Przywrócono: <b>${esc(it.name)}</b>`);
+  });
+}
+
+/** Szukanie miejsca do planu: nazwa, adres albo tekst/link udostępniony z Google Maps. */
+async function planSearch(q, city) {
+  const parsed = parseShared(q);
+  if (parsed.lat == null && AlvaParsers.isShortMapsLink(parsed.url)) {
+    const full = await AlvaNative.expandMapsLink(parsed.url);
+    const c = full && AlvaParsers.coordsFromUrl(full);
+    if (c) { parsed.lat = c.lat; parsed.lng = c.lng; if (!parsed.name) parsed.name = parseShared(full).name; }
+  }
+  if (parsed.lat != null) {
+    const rev = await geoReverse(parsed.lat, parsed.lng);
+    return { parsed, cands: [{ ...rev, name: parsed.name || rev.name, lat: parsed.lat, lng: parsed.lng }] };
+  }
+  const base = [parsed.name, parsed.addr].filter(Boolean).join(', ') || q.trim();
+  const inCity = city && !normalizeText(base).includes(normalizeText(city)) ? `${base}, ${city}` : '';
+  const tries = [inCity, base, parsed.addr, parsed.name].filter((x, i, a) => x && a.indexOf(x) === i);
+  let cands = [];
+  for (const t of tries) { cands = await geoSearch(t); if (cands.length) break; }
+  if (parsed.name) cands = cands.map((c) => ({ ...c, name: c.name && normalizeText(parsed.name).includes(normalizeText(c.name)) ? parsed.name : (c.name || parsed.name) }));
+  return { parsed, cands };
+}
+
+function openPlanAddItem(p) {
+  const cats = planCats(p);
+  let picked = null; // { name, addr, lat, lng }
+  openModal(`<div class="dlg">
+    <div class="share-head"><h2>Nowe miejsce w planie</h2><button type="button" class="btn-ghost icon-only" data-x aria-label="Zamknij"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+    <div class="field"><label for="piQ">Nazwa lub adres</label>
+      <textarea id="piQ" rows="2" placeholder="np. Rigensis albo tekst udostępniony z Google Maps"></textarea></div>
+    <div class="btn-row"><button type="button" class="btn" id="piFind">Szukaj</button><button type="button" class="btn btn-soft" id="piHere">Tu, gdzie jestem</button></div>
+    <p class="muted small" id="piMsg"></p>
+    <ul class="pl-cands" id="piCands"></ul>
+    <div id="piForm" hidden>
+      <div class="field"><label for="piName">Nazwa</label><input id="piName" type="text"></div>
+      <div class="field"><label for="piCat">Kategoria</label>
+        <select id="piCat">${[...cats.keys()].map((c) => `<option>${esc(c)}</option>`).join('')}<option value="__new">Nowa kategoria…</option></select>
+        <input id="piCatNew" type="text" placeholder="Nazwa nowej kategorii" hidden></div>
+      <div class="field"><label for="piDesc">Opis (opcjonalnie)</label><textarea id="piDesc" rows="3" placeholder="Co tu warto zobaczyć lub zjeść"></textarea></div>
+      <p class="muted small" id="piWhere"></p>
+      <div class="btn-row"><button type="button" class="btn" id="piSave">Dodaj do planu</button><button type="button" class="btn btn-soft" data-x>Anuluj</button></div>
+    </div>
+  </div>`, (card) => {
+    card.querySelectorAll('[data-x]').forEach((b) => b.addEventListener('click', closeModal));
+    const msg = card.querySelector('#piMsg'), list = card.querySelector('#piCands'), form = card.querySelector('#piForm');
+    const alive = () => $('piMsg') === msg;
+    const catSel = card.querySelector('#piCat'), catNew = card.querySelector('#piCatNew');
+    if (!cats.size) { catSel.value = '__new'; catNew.hidden = false; }
+    catSel.addEventListener('change', () => { catNew.hidden = catSel.value !== '__new'; if (!catNew.hidden) catNew.focus(); });
+    const choose = (c) => {
+      picked = { name: c.name || '', addr: c.addr || '', lat: c.lat, lng: c.lng };
+      form.hidden = false;
+      const n = card.querySelector('#piName'); if (!n.value) n.value = picked.name;
+      card.querySelector('#piWhere').textContent = picked.addr ? `Adres: ${picked.addr}` : '';
+    };
+    const find = async () => {
+      const q = card.querySelector('#piQ').value.trim();
+      if (!q) { msg.textContent = 'Wpisz nazwę miejsca, adres albo wklej tekst z Google Maps.'; return; }
+      list.innerHTML = ''; msg.innerHTML = '<span class="spinner sm"></span> Szukam…';
+      let r;
+      try { r = await planSearch(q, p.name); } catch (e) { if (alive()) msg.textContent = 'Nie mogę połączyć się z wyszukiwarką adresów. Sprawdź internet albo użyj „Tu, gdzie jestem”.'; return; }
+      if (!alive()) return;
+      if (!r.cands.length) { msg.textContent = 'Nic nie znalazłem. Dopisz ulicę albo użyj „Tu, gdzie jestem”, gdy stoisz przy tym miejscu.'; return; }
+      msg.textContent = r.cands.length > 1 ? 'Wybierz właściwe miejsce:' : 'Znalazłem:';
+      list.innerHTML = r.cands.map((c, i) => `<li><button type="button" class="pl-cand" data-i="${i}"><span><b>${esc(c.name || r.parsed.name || '')}</b><small>${esc(c.addr || c.city || '')}</small></span></button></li>`).join('');
+      list.querySelectorAll('.pl-cand').forEach((b) => b.addEventListener('click', () => {
+        list.querySelectorAll('.pl-cand').forEach((x) => x.classList.toggle('on', x === b));
+        card.querySelector('#piName').value = '';
+        choose(r.cands[Number(b.dataset.i)]);
+      }));
+      if (r.cands.length === 1) { list.querySelector('.pl-cand').classList.add('on'); choose(r.cands[0]); }
+    };
+    card.querySelector('#piFind').addEventListener('click', find);
+    card.querySelector('#piQ').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); find(); } });
+    card.querySelector('#piHere').addEventListener('click', async () => {
+      list.innerHTML = ''; msg.innerHTML = '<span class="spinner sm"></span> Ustalam, gdzie jesteś…';
+      let pos;
+      try { pos = await needMyPos(); } catch (e) { if (alive()) msg.textContent = e.shown ? '' : e.message; return; }
+      if (!alive()) return;
+      msg.innerHTML = '<span class="spinner sm"></span> Sprawdzam adres…';
+      const rev = await geoReverse(pos.lat, pos.lng);
+      if (!alive()) return;
+      msg.textContent = `Twoja pozycja (dokładność ok. ${Math.max(5, Math.round(myPos && myPos.acc ? myPos.acc : 10))} m). Wpisz nazwę miejsca.`;
+      choose({ ...rev, lat: pos.lat, lng: pos.lng, name: rev.name || '' });
+      card.querySelector('#piName').focus();
+    });
+    card.querySelector('#piSave').addEventListener('click', () => {
+      const name = card.querySelector('#piName').value.trim();
+      if (!picked) { msg.textContent = 'Najpierw wyszukaj miejsce albo użyj „Tu, gdzie jestem”.'; return; }
+      if (!name) { msg.textContent = 'Podaj nazwę miejsca.'; card.querySelector('#piName').focus(); return; }
+      let cat = catSel.value === '__new' ? catNew.value.trim() : catSel.value;
+      if (!cat) cat = 'Inne';
+      const color = cats.get(cat) || PLAN_COLORS[cats.size % PLAN_COLORS.length];
+      const it = { id: `${p.id}-m${Date.now().toString(36)}`, name, addr: picked.addr || '', cat, desc: card.querySelector('#piDesc').value.trim(), color, layer: cat,
+        lat: picked.lat, lng: picked.lng, geo: picked.lat != null ? 'ok' : 'miss', done: '', placeId: '', manual: true };
+      p.items.push(it);
+      if (p.removed) p.removed = p.removed.filter((n) => n !== name);
+      saveNow(); closeModal();
+      if (planOpenId === p.id && $('planList')) { renderPlanList(p); addPlanMarker(p, it); }
+      toast(`Dodano do planu: <b>${esc(name)}</b>`);
+    });
+    setTimeout(() => card.querySelector('#piQ').focus(), 50);
+  });
+}
+
 function openPlanImport() {
   openModal(`<div class="dlg">
     <div class="share-head"><h2>Nowy plan zwiedzania</h2><button type="button" class="btn-ghost icon-only" data-x aria-label="Zamknij"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
@@ -454,7 +615,14 @@ function openPlanImport() {
           plan.items.push({ id: plan.id + '-' + i, ...it, geo: it.lat != null ? 'ok' : (prev && prev.lat != null ? 'ok' : 'wait'),
             lat: it.lat ?? (prev ? prev.lat : null), lng: it.lng ?? (prev ? prev.lng : null), done: prev ? prev.done : '', placeId: prev ? prev.placeId : '' });
         });
-        if (existing) state.plans = plans().filter((x) => x.id !== existing.id); // ponowny import: odhaczenia zostają
+        if (existing) {
+          // ponowny import: odhaczenia zostają, miejsca dodane ręcznie zostają, usunięte z planu nie wracają
+          const removed = Array.isArray(existing.removed) ? existing.removed : [];
+          plan.items = plan.items.filter((it) => !removed.includes(it.name));
+          plan.items.push(...existing.items.filter((it) => it.manual));
+          if (removed.length) plan.removed = removed.slice();
+          state.plans = plans().filter((x) => x.id !== existing.id);
+        }
         plans().push(plan);
         saveNow(); closeModal();
         toast(`<b>Plan „${esc(plan.name)}”</b>: ${plan.items.length} ${plural(plan.items.length, ['miejsce', 'miejsca', 'miejsc'])}`);
