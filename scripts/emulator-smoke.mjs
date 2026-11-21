@@ -215,6 +215,18 @@ if (hasKey && await page.locator('#planMe').count()) {
   }
 }
 
+// 5e. usunięcie miejsca z planu: potwierdzenie, kopia tuż przed, cofnięcie
+await page.evaluate(() => { planOpenId = 'plt'; showView('plans'); });
+await page.locator('[data-open="plt-1"]').click();
+await page.locator('[data-del="plt-1"]').click();
+await page.locator('[data-delyes="plt-1"]').click();
+await page.waitForFunction(() => !state.plans[0].items.some((i) => i.id === 'plt-1'), null, { timeout: 10000 }).catch(() => {});
+const delSt = await page.evaluate(async () => ({ items: state.plans[0].items.length, removed: state.plans[0].removed || [], lastBackupAt: (await AlvaData.status()).lastBackupAt || null }));
+check(delSt.items === 1 && delSt.removed.includes('Hala') && !!delSt.lastBackupAt, 'plany: usunięcie miejsca po potwierdzeniu, z kopią tuż przed', JSON.stringify(delSt));
+await page.locator('.toast-undo').first().click();
+const undoSt = await page.evaluate(() => state.plans[0].items.map((i) => i.id).join(','));
+check(undoSt === 'plt-0,plt-1', 'plany: cofnięcie usunięcia przywraca miejsce', undoSt);
+
 // 6. brak awarii
 const fatal = sh('logcat -d -b crash 2>/dev/null || true') + sh(`logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime: Process: ${PKG}" || true`);
 check(!/FATAL EXCEPTION/.test(fatal), 'brak awarii w logach', fatal.slice(0, 300));

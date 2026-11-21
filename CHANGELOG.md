@@ -2,6 +2,13 @@
 
 Każda wersja ma tu sekcję `## <wersja>`. Jej treść trafia do opisu wydania w GitHub Releases.
 
+## 1.2.3
+
+- **Dodawanie miejsc do planu**: na końcu listy przycisk „Dodaj miejsce do planu”. Wpisz nazwę lub adres (albo wklej tekst udostępniony z Google Maps) i kliknij „Szukaj”, albo użyj „Tu, gdzie jestem”, gdy stoisz przy miejscu. Wybierasz kategorię z planu lub tworzysz nową i możesz dopisać opis. Nowe miejsce od razu pojawia się na liście i na mapie
+- **Usuwanie miejsca z planu**: po rozwinięciu miejsca przycisk „Usuń z planu”, z potwierdzeniem. Tuż przed usunięciem powstaje kopia zapasowa, a przez kilka sekund można kliknąć „Cofnij”. Odwiedzone miejsce zostaje w Twoich miejscach
+- Ponowny import tej samej mapy z Google Moje Mapy zachowuje miejsca dodane ręcznie i nie przywraca usuniętych
+- Przed usunięciem całego planu też powstaje kopia zapasowa
+
 ## 1.2.2
 
 - **Poprawka: pełny opis miejsca w planie.** Kliknięcie nazwy miejsca na liście rozwija szczegóły: cały opis, kategorię oraz przyciski „Pokaż na mapie” i „Google Maps”. Ponowne kliknięcie zwija. Strzałka przy nazwie pokazuje, że można rozwinąć

@@ -672,3 +672,9 @@ a.btn { text-decoration: none; }
 .plan-route .tiny { font-size: 11px; }
 .gpin.num { width: 24px; height: 24px; color: #fff; font: 700 12px/1 system-ui, sans-serif; text-shadow: 0 0 2px rgba(0,0,0,0.6); }
 .ginfo-route { margin-top: 6px; padding: 4px 12px; border: 0; border-radius: 999px; background: #1a73e8; color: #fff; font-weight: 600; font-size: 13px; }
+
+.plan-add-item { margin-top: 4px; }
+.plan-extra .plan-del { justify-self: start; }
+.toast-undo { margin-left: 10px; padding: 3px 10px; border: 1px solid currentColor; border-radius: 999px; background: none; color: inherit; font-weight: 700; font-size: 13px; }
+#piCatNew { margin-top: 8px; }
+.toast-undo { pointer-events: auto; cursor: pointer; }
